@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>설탕 도망쳐! - 애벌레 술래잡기</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#10131a; }
+  body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color:#fff; }
+  canvas { display:block; }
+
+  #hud {
+    position:fixed; top:14px; left:14px; z-index:10;
+    background:rgba(12,16,24,.62); border:1px solid rgba(255,255,255,.14);
+    border-radius:14px; padding:12px 16px; min-width:210px;
+    backdrop-filter:blur(6px); font-size:14px; line-height:1.7;
+    pointer-events:none;
+  }
+  #hud .big { font-size:22px; font-weight:700; letter-spacing:.5px; }
+  #hud .row { display:flex; justify-content:space-between; gap:14px; }
+  #hud .k { opacity:.65; }
+  #bar { height:6px; border-radius:3px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:6px; }
+  #barIn { height:100%; width:0%; background:linear-gradient(90deg,#ffd24a,#ff7a4a); }
+
+  #state {
+    position:fixed; top:14px; right:14px; z-index:10; text-align:right;
+    background:rgba(12,16,24,.62); border:1px solid rgba(255,255,255,.14);
+    border-radius:14px; padding:12px 16px; font-size:14px; line-height:1.7;
+    backdrop-filter:blur(6px); pointer-events:none;
+  }
+  .tag { display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+  .safe { background:#1f7a4d; } .danger { background:#a8202a; } .warn { background:#8a6a10; }
+
+  #toast {
+    position:fixed; top:22%; left:50%; transform:translateX(-50%) scale(.9);
+    z-index:12; font-size:30px; font-weight:800; text-align:center;
+    text-shadow:0 4px 18px rgba(0,0,0,.7); opacity:0; transition:.35s;
+    pointer-events:none; white-space:nowrap;
+  }
+  #toast.on { opacity:1; transform:translateX(-50%) scale(1); }
+  #toast small { display:block; font-size:15px; font-weight:500; opacity:.85; margin-top:6px; }
+
+  .screen {
+    position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at center, rgba(24,30,44,.92), rgba(6,8,13,.97));
+  }
+  .screen.hide { display:none; }
+  .card { width:min(720px, 92vw); max-height:92vh; overflow:auto; text-align:center; padding:34px 30px; }
+  .card h1 { font-size:38px; margin-bottom:6px; letter-spacing:-.5px; }
+  .card h2 { font-size:30px; margin-bottom:10px; }
+  .card p.sub { opacity:.7; margin-bottom:22px; font-size:15px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:10px; margin:18px 0 22px; }
+  .cell { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+          border-radius:12px; padding:10px 8px; font-size:13px; }
+  .cell b { display:block; font-size:15px; margin-bottom:3px; }
+  .cell span { opacity:.62; font-size:12px; line-height:1.5; display:block; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:5px; vertical-align:-1px; }
+  .keys { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-bottom:20px; }
+  .key { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16);
+         border-radius:10px; padding:8px 14px; font-size:13px; }
+  .key b { font-family:ui-monospace, monospace; }
+  button {
+    font:inherit; font-weight:700; font-size:17px; color:#10131a; cursor:pointer;
+    background:linear-gradient(180deg,#ffe79a,#ffc24a); border:0; border-radius:12px; padding:13px 40px;
+  }
+  button:hover { filter:brightness(1.07); }
+  .stats { display:flex; gap:26px; justify-content:center; margin:18px 0 24px; }
+  .stats div b { display:block; font-size:28px; }
+  .stats div span { opacity:.6; font-size:13px; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="big">레벨 <span id="lv">1</span></div>
+  <div class="row"><span class="k">캐릭터</span><span id="charName">설탕</span></div>
+  <div class="row"><span class="k">생존 시간</span><span id="time">0:00</span></div>
+  <div class="row"><span class="k">AI 친구</span><span id="friends">7</span></div>
+  <div id="bar"><div id="barIn"></div></div>
+</div>
+
+<div id="state">
+  <div id="hideTag" class="tag danger">노출됨</div>
+  <div id="hideInfo" style="opacity:.7; font-size:12px; margin-top:6px;">숨을 곳을 찾으세요</div>
+  <div id="dist" style="opacity:.6; font-size:12px;">애벌레 거리 --</div>
+</div>
+
+<div id="toast"></div>
+
+<div id="start" class="screen">
+  <div class="card">
+    <h1>🍬 설탕 도망쳐!</h1>
+    <p class="sub">주방에 애벌레가 나타났다. AI 친구들과 함께 살아남으세요.</p>
+    <div class="keys">
+      <div class="key"><b>↑ ↓</b> 앞뒤 이동</div>
+      <div class="key"><b>← →</b> 방향 회전</div>
+      <div class="key"><b>Space</b> 점프</div>
+      <div class="key"><b>마우스 드래그</b> 시점</div>
+      <div class="key"><b>R</b> 재시작</div>
+    </div>
+    <div class="grid" id="charGrid"></div>
+    <p class="sub" style="margin-bottom:20px">
+      1분마다 레벨이 올라 다음 캐릭터로 변신합니다. 몸집이 커질수록 숨을 곳이 줄어듭니다.<br>
+      트램펄린(노란 발판)을 밟으면 서랍·테이블·책상·냉장고 위로 튕겨 올라갑니다.
+    </p>
+    <button id="startBtn">게임 시작</button>
+  </div>
+</div>
+
+<div id="over" class="screen hide">
+  <div class="card">
+    <h2 id="overTitle">🐛 잡혔다!</h2>
+    <p class="sub" id="overSub">애벌레에게 닿았습니다.</p>
+    <div class="stats">
+      <div><b id="ovLv">1</b><span>도달 레벨</span></div>
+      <div><b id="ovTime">0:00</b><span>생존 시간</span></div>
+      <div><b id="ovChar">설탕</b><span>마지막 모습</span></div>
+    </div>
+    <button id="againBtn">다시 도전</button>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+(function () {
+'use strict';
+
+if (typeof THREE === 'undefined') {
+  document.body.innerHTML = '<div class="screen"><div class="card"><h2>3D 엔진을 불러오지 못했습니다</h2><p class="sub">인터넷 연결을 확인한 뒤 새로고침해 주세요.</p></div></div>';
+  return;
+}
+
+/* ------------------------------------------------------------------ *
+ *  상수 / 캐릭터 정의
+ * ------------------------------------------------------------------ */
+
+var G = 9.8;                 // 중력 (트램펄린이 약 0.5초에 가구 위로 오르도록 맞춘 값)
+var LEVEL_TIME = 60;         // 1분마다 레벨 업
+
+// fit: 숫자가 작을수록 작은 몸집 -> 더 많은 구멍에 들어갈 수 있음
+var CHARS = [
+  { key:'sugar',      name:'설탕',     r:0.10, fit:1, color:0xffffff, shape:'cube',
+    speed:3.3, jump:3.05, note:'아주 작은 사각형. 작은 구멍과 잔디밭에 숨을 수 있다.' },
+  { key:'blueberry',  name:'블루베리', r:0.14, fit:2, color:0x4c5bc4, shape:'berry',
+    speed:3.45, jump:3.1, note:'작은 구멍 + 파란 물건 속에 숨을 수 있다.' },
+  { key:'kiwi',       name:'키위',     r:0.19, fit:3, color:0x8d6b3c, shape:'fruit',
+    speed:3.55, jump:3.15, note:'몸집에 맞는 구멍에 들어갈 수 있다.' },
+  { key:'tomato',     name:'토마토',   r:0.23, fit:4, color:0xe03a26, shape:'fruit',
+    speed:3.6, jump:3.2, note:'몸집에 맞는 구멍에 들어갈 수 있다.' },
+  { key:'cabbage',    name:'양배추',   r:0.32, fit:6, color:0x93c96e, shape:'fruit',
+    speed:3.4, jump:3.1, note:'커서 들어갈 곳이 거의 없다.' },
+  { key:'watermelon', name:'수박',     r:0.45, fit:9, color:0x2f7d32, shape:'melon',
+    speed:3.0, jump:2.95, note:'가장 크다. 숨을 곳이 없다.' },
+  { key:'melon',      name:'멜론',     r:0.38, fit:8, color:0xd9d182, shape:'melon',
+    speed:3.1, jump:3.0, note:'커서 숨을 곳이 없다.' },
+  { key:'coconut',    name:'코코넛',   r:0.30, fit:7, color:0x6d4726, shape:'fruit',
+    speed:3.25, jump:3.05, note:'단단하지만 숨을 곳이 없다.' }
+];
+
+var boxes = [];      // 충돌체 { min, max, tramp, apex, landX, landZ, name }
+var holes = [];      // 숨는 구멍 { x, z, y, r, fit, name }
+var grassZones = []; // 잔디밭 (설탕 전용) { x, z, r }
+var blueZones = [];  // 파란 곳 (블루베리 전용) { x, z, r, name }
+
+/* ------------------------------------------------------------------ *
+ *  렌더러 / 씬
+ * ------------------------------------------------------------------ */
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9dd3f0);
+scene.fog = new THREE.Fog(0x9dd3f0, 22, 46);
+
+var camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.03, 160);
+
+scene.add(new THREE.HemisphereLight(0xdfe9f5, 0x6e6252, 0.55));
+var sun = new THREE.DirectionalLight(0xfff3dc, 0.75);
+sun.position.set(7, 14, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+var sc = sun.shadow.camera;
+sc.left = -18; sc.right = 18; sc.top = 18; sc.bottom = -18; sc.near = 1; sc.far = 48;
+scene.add(sun);
+
+addEventListener('resize', function () {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* ------------------------------------------------------------------ *
+ *  헬퍼
+ * ------------------------------------------------------------------ */
+
+function mat(color, rough, metal) {
+  return new THREE.MeshStandardMaterial({
+    color: color, roughness: rough === undefined ? 0.8 : rough, metalness: metal || 0
+  });
+}
+
+// 충돌 박스 + 메시를 한 번에 생성 (x0..x1, y0..y1, z0..z1)
+function solid(x0, x1, y0, y1, z0, z1, color, opts) {
+  opts = opts || {};
+  var g = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0);
+  var m = new THREE.Mesh(g, opts.material || mat(color, opts.rough, opts.metal));
+  m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+  if (!opts.noCollide) {
+    boxes.push({
+      min: { x:x0, y:y0, z:z0 }, max: { x:x1, y:y1, z:z1 },
+      tramp: false, name: opts.name || '', mesh: m
+    });
+  }
+  return m;
+}
+
+function checkerTexture(a, b, n) {
+  var c = document.createElement('canvas');
+  c.width = c.height = 64;
+  var x = c.getContext('2d');
+  x.fillStyle = a; x.fillRect(0, 0, 64, 64);
+  x.fillStyle = b; x.fillRect(0, 0, 32, 32); x.fillRect(32, 32, 32, 32);
+  var t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(n, n);
+  t.magFilter = THREE.NearestFilter;
+  return t;
+}
+
+/* ------------------------------------------------------------------ *
+ *  월드 만들기 — 주방(10 x 10) + 마당(잔디밭)
+ * ------------------------------------------------------------------ */
+
+// --- 주방 바닥 ---
+var floorMesh = new THREE.Mesh(
+  new THREE.PlaneGeometry(10, 10),
+  new THREE.MeshStandardMaterial({ map: checkerTexture('#e8e2d6', '#c3b9a6', 10), roughness:0.9 })
+);
+floorMesh.rotation.x = -Math.PI / 2;
+floorMesh.receiveShadow = true;
+scene.add(floorMesh);
+
+// --- 마당 잔디 ---
+var yard = new THREE.Mesh(
+  new THREE.PlaneGeometry(18, 13),
+  new THREE.MeshStandardMaterial({ color:0x5aa64a, roughness:1 })
+);
+yard.rotation.x = -Math.PI / 2;
+yard.position.set(0, -0.01, 11.5);
+yard.receiveShadow = true;
+scene.add(yard);
+
+// 문지방
+solid(-1.2, 1.2, 0, 0.04, 4.95, 5.25, 0x8b6a4a, { noCollide:true });
+
+// --- 벽 (문은 x -1 ~ 1) ---
+var wallMat = mat(0xf2ece2, 0.95);
+solid(-5.2,  5.2, 0, 3, -5.2, -5.0, 0, { material:wallMat, name:'벽' });
+solid(-5.2, -5.0, 0, 3, -5.0,  5.0, 0, { material:wallMat, name:'벽' });
+solid( 5.0,  5.2, 0, 3, -5.0,  5.0, 0, { material:wallMat, name:'벽' });
+solid(-5.2, -1.0, 0, 3,  5.0,  5.2, 0, { material:wallMat, name:'벽' });
+solid( 1.0,  5.2, 0, 3,  5.0,  5.2, 0, { material:wallMat, name:'벽' });
+solid(-1.0,  1.0, 2.1, 3, 5.0, 5.2, 0, { material:wallMat, name:'문틀' });
+
+// 마당 울타리
+var fenceMat = mat(0xa9855c, 0.9);
+solid(-9.0, 9.0, 0, 0.9, 17.8, 18.0, 0, { material:fenceMat, name:'울타리' });
+solid(-9.0, -8.8, 0, 0.9, 5.0, 18.0, 0, { material:fenceMat, name:'울타리' });
+solid( 8.8,  9.0, 0, 0.9, 5.0, 18.0, 0, { material:fenceMat, name:'울타리' });
+
+/* ---- 냉장고 (오른쪽 안쪽) ---- */
+solid(3.0, 4.7, 0, 2.2, -4.9, -3.3, 0xdfe4e8, { rough:0.35, metal:0.35, name:'냉장고' });
+solid(2.98, 3.02, 0.7, 1.5, -4.6, -3.6, 0x9aa3aa, { noCollide:true, metal:0.6 }); // 손잡이
+// 냉장고 밑 틈새 = 중간 크기 구멍
+holes.push({ x:3.85, z:-3.15, y:0, r:0.5, fit:4, name:'냉장고 밑 틈새' });
+
+/* ---- 오븐 (왼쪽 안쪽) ---- */
+solid(-4.7, -3.0, 0, 1.0, -4.9, -3.4, 0x4a4f57, { rough:0.4, metal:0.5, name:'오븐' });
+solid(-4.6, -3.1, 0.25, 0.75, -3.44, -3.40, 0x2b2f36, { noCollide:true }); // 오븐 유리
+solid(-4.7, -3.0, 1.0, 1.06, -4.9, -3.4, 0x2f333a, { name:'오븐 상판' });
+
+// 주전자 (오븐 위)
+var kettle = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 0.34, 20), mat(0xc9ccd1, 0.3, 0.7));
+kettle.position.set(-4.2, 1.23, -4.1); kettle.castShadow = true; scene.add(kettle);
+var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.26, 10), mat(0xc9ccd1, 0.3, 0.7));
+spout.position.set(-3.94, 1.28, -4.1); spout.rotation.z = -0.9; scene.add(spout);
+var lid = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), mat(0x32363d, 0.5));
+lid.position.set(-4.2, 1.42, -4.1); scene.add(lid);
+boxes.push({ min:{x:-4.46,y:1.06,z:-4.36}, max:{x:-3.94,y:1.42,z:-3.84}, tramp:false, target:0, name:'주전자' });
+
+// 프라이팬 (오븐 위)
+var pan = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.29, 0.1, 22), mat(0x2a2d33, 0.55));
+pan.position.set(-3.45, 1.11, -3.95); pan.castShadow = true; scene.add(pan);
+var handle = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.09), mat(0x4a3a2a, 0.8));
+handle.position.set(-3.05, 1.13, -3.95); scene.add(handle);
+boxes.push({ min:{x:-3.78,y:1.06,z:-4.28}, max:{x:-3.12,y:1.16,z:-3.62}, tramp:false, target:0, name:'프라이팬' });
+
+/* ---- 서랍장 (뒤쪽 가운데, 서랍 하나가 열려 있음) ---- */
+solid(-1.6, 0.9, 0, 0.9, -4.9, -4.0, 0xb4885e, { name:'서랍장' });
+// 열린 서랍: 바닥판 + 옆면 (안쪽이 걸어다닐 수 있는 공간)
+solid(-1.5, 0.8, 0.40, 0.6, -4.05, -3.25, 0xc79a6d, { name:'열린 서랍 바닥' });
+solid(-1.55, -1.5, 0.6, 0.78, -4.05, -3.25, 0xa8794f, { name:'서랍 옆면' });
+solid( 0.80,  0.85, 0.6, 0.78, -4.05, -3.25, 0xa8794f, { name:'서랍 옆면' });
+solid(-1.55, 0.85, 0.6, 0.78, -3.30, -3.25, 0x8f6a45, { name:'서랍 앞판' });
+// 서랍 구석의 좁은 틈 = 작은 구멍
+holes.push({ x:-1.25, z:-3.6, y:0.6, r:0.3, fit:2, name:'서랍 속 틈새' });
+
+/* ---- 식탁 + 의자 (방 가운데) ---- */
+var topY = 0.82;
+solid(-1.3, 1.3, topY, topY + 0.08, -0.6, 1.6, 0xd2a373, { name:'식탁 상판' });
+[[-1.18,-0.48],[1.18,-0.48],[-1.18,1.48],[1.18,1.48]].forEach(function (p) {
+  solid(p[0]-0.07, p[0]+0.07, 0, topY, p[1]-0.07, p[1]+0.07, 0xa8794f, { name:'식탁 다리' });
+});
+// 의자
+solid(-0.45, 0.45, 0.44, 0.5, 2.1, 2.9, 0xc08b57, { name:'의자 앉는 곳' });
+solid(-0.45, 0.45, 0.5, 1.05, 2.84, 2.9, 0xb07c4c, { name:'의자 등받이' });
+[[-0.38,2.18],[0.38,2.18],[-0.38,2.82],[0.38,2.82]].forEach(function (p) {
+  solid(p[0]-0.05, p[0]+0.05, 0, 0.44, p[1]-0.05, p[1]+0.05, 0x9c6d42, { name:'의자 다리' });
+});
+
+// 파란색 머그컵 (식탁 위) — 블루베리의 은신처
+var mugMat = mat(0x2f6fd0, 0.5);
+var mug = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.17, 0.26, 20, 1, true), mugMat);
+mug.position.set(0.55, topY + 0.21, 0.9); mug.castShadow = true; scene.add(mug);
+var mugBottom = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.03, 20), mugMat);
+mugBottom.position.set(0.55, topY + 0.095, 0.9); scene.add(mugBottom);
+var ear = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.028, 8, 16), mugMat);
+ear.position.set(0.77, topY + 0.21, 0.9); ear.rotation.y = Math.PI / 2; scene.add(ear);
+blueZones.push({ x:0.55, z:0.9, r:0.2, y:topY + 0.09, name:'파란 머그컵 속' });
+
+// 파란 러그 (바닥) — 블루베리 은신처
+var rug = new THREE.Mesh(new THREE.CircleGeometry(0.95, 32), mat(0x3763c4, 0.95));
+rug.rotation.x = -Math.PI / 2; rug.position.set(-3.2, 0.012, 1.6); rug.receiveShadow = true; scene.add(rug);
+blueZones.push({ x:-3.2, z:1.6, r:0.8, y:0, name:'파란 러그 위' });
+
+// 벽 밑 작은 구멍 (설탕/블루베리용)
+var holeHole = new THREE.Mesh(new THREE.CircleGeometry(0.22, 20), mat(0x14100c, 1));
+holeHole.position.set(2.0, 0.22, -4.98); scene.add(holeHole);
+holes.push({ x:2.0, z:-4.75, y:0, r:0.32, fit:2, name:'벽 밑 작은 구멍' });
+
+// 배수관 구멍 (큰 편 — 양배추까지)
+var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.06, 20), mat(0x3b4048, 0.6, 0.4));
+pipe.position.set(-4.1, 0.02, 3.4); scene.add(pipe);
+holes.push({ x:-4.1, z:3.4, y:0, r:0.46, fit:6, name:'배수관 구멍' });
+
+/* ---- 마당: 책상, 잔디, 화분 ---- */
+solid(-2.3, 0.3, 0.78, 0.86, 12.0, 14.0, 0xb98a5c, { name:'마당 책상 상판' });
+[[-2.18,12.12],[0.18,12.12],[-2.18,13.88],[0.18,13.88]].forEach(function (p) {
+  solid(p[0]-0.07, p[0]+0.07, 0, 0.78, p[1]-0.07, p[1]+0.07, 0x94663c, { name:'책상 다리' });
+});
+
+// 화분 (구멍)
+var pot = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.42, 0.55, 18), mat(0xb5623c, 0.9));
+pot.position.set(4.6, 0.275, 9.0); pot.castShadow = true; scene.add(pot);
+boxes.push({ min:{x:4.08,y:0,z:8.48}, max:{x:5.12,y:0.5,z:9.52}, tramp:false, target:0, name:'화분' });
+var soil = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.04, 18), mat(0x3a2a1c, 1));
+soil.position.set(4.6, 0.55, 9.0); scene.add(soil);
+holes.push({ x:4.6, z:9.0, y:0.55, r:0.4, fit:4, name:'화분 흙 속' });
+
+// 잔디 덤불 (설탕 은신처) — 여러 군데
+var grassSpots = [[-5.2, 8.2, 1.0], [6.2, 13.4, 1.1], [-6.4, 14.6, 1.0], [2.6, 16.2, 0.95], [7.0, 6.6, 0.9]];
+var bladeGeo = new THREE.ConeGeometry(0.07, 0.55, 4);
+var bladeMat = mat(0x3f8a33, 1);
+grassSpots.forEach(function (s) {
+  grassZones.push({ x:s[0], z:s[1], r:s[2] * 0.85 });
+  var count = 46;
+  var mesh = new THREE.InstancedMesh(bladeGeo, bladeMat, count);
+  var d = new THREE.Object3D();
+  for (var i = 0; i < count; i++) {
+    var a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * s[2];
+    d.position.set(s[0] + Math.cos(a) * rr, 0.27, s[1] + Math.sin(a) * rr);
+    d.rotation.set((Math.random() - 0.5) * 0.4, Math.random() * 3.14, (Math.random() - 0.5) * 0.4);
+    d.scale.setScalar(0.7 + Math.random() * 0.7);
+    d.updateMatrix();
+    mesh.setMatrixAt(i, d.matrix);
+  }
+  mesh.castShadow = true;
+  scene.add(mesh);
+});
+
+/* ---- 트램펄린 4개 ---- */
+// 트램펄린: 최고점(apexY)까지 솟구치면서, 그 시점에 착지 지점(landX, landZ) 위에 오도록
+// 수평 속도까지 함께 준다 -> 밟으면 "자연스럽게" 가구 위로 올라간다.
+function trampoline(x, z, apexY, landX, landZ, label) {
+  var r = 0.55;
+  var base = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.9, 0.16, 22), mat(0x2b2f38, 0.7));
+  base.position.set(x, 0.08, z); base.castShadow = true; base.receiveShadow = true; scene.add(base);
+  var pad = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.86, r * 0.86, 0.04, 22),
+    new THREE.MeshStandardMaterial({ color:0xffd24a, roughness:0.55, emissive:0x6b4a00, emissiveIntensity:0.45 }));
+  pad.position.set(x, 0.18, z); scene.add(pad);
+  boxes.push({
+    min:{ x:x - r*0.86, y:0, z:z - r*0.86 }, max:{ x:x + r*0.86, y:0.2, z:z + r*0.86 },
+    tramp:true, apex:apexY, landX:landX, landZ:landZ,
+    name:'트램펄린(' + label + ')', pad:pad
+  });
+}
+trampoline(-0.35, -2.85, 1.15, -0.35, -3.65, '서랍');      // 서랍 앞 -> 열린 서랍 안
+trampoline( 1.95,  0.45, 1.30,  0.60,  0.50, '식탁');      // 식탁 옆 -> 식탁 위
+trampoline(-1.00, 11.30, 1.25, -1.00, 13.00, '마당 책상');  // 마당 책상 앞 -> 책상 위
+trampoline( 3.85, -2.75, 2.60,  3.85, -4.10, '냉장고');    // 냉장고 앞 -> 냉장고 위
+
+// 트램펄린 발사: 목표 최고점까지 솟으면서 착지 지점 위로 날아가는 속도를 계산
+function launch(pos, vel, b) {
+  var rise = Math.max(0.3, b.apex - pos.y);
+  vel.y = Math.sqrt(2 * G * rise);
+  var t = vel.y / G;                       // 최고점까지 걸리는 시간 (약 0.5초)
+  vel.x = (b.landX - pos.x) / t;
+  vel.z = (b.landZ - pos.z) / t;
+  return t;
+}
+
+/* ------------------------------------------------------------------ *
+ *  캐릭터 메시 생성
+ * ------------------------------------------------------------------ */
+
+function makeBody(def) {
+  var g = new THREE.Group();
+  var r = def.r, body;
+  if (def.shape === 'cube') {
+    body = new THREE.Mesh(new THREE.BoxGeometry(r * 1.8, r * 1.8, r * 1.8),
+      new THREE.MeshStandardMaterial({ color:def.color, roughness:0.45 }));
+  } else if (def.shape === 'berry') {
+    body = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat(def.color, 0.45));
+    var crown = new THREE.Mesh(new THREE.ConeGeometry(r * 0.42, r * 0.3, 6), mat(0x37456f, 0.7));
+    crown.position.y = r * 0.95; crown.rotation.x = Math.PI; g.add(crown);
+  } else if (def.shape === 'melon') {
+    body = new THREE.Mesh(new THREE.SphereGeometry(r, 20, 16), mat(def.color, 0.6));
+    if (def.key === 'watermelon') {
+      for (var i = 0; i < 6; i++) {
+        var st = new THREE.Mesh(new THREE.TorusGeometry(r * 1.001, r * 0.035, 6, 24, Math.PI),
+          mat(0x1d5220, 0.7));
+        st.rotation.y = i * Math.PI / 6; st.rotation.x = Math.PI / 2;
+        g.add(st);
+      }
+    }
+  } else {
+    body = new THREE.Mesh(new THREE.SphereGeometry(r, 18, 14), mat(def.color, 0.55));
+    body.scale.y = def.key === 'kiwi' ? 1.2 : 1;
+    if (def.key === 'tomato' || def.key === 'cabbage') {
+      var leaf = new THREE.Mesh(new THREE.ConeGeometry(r * 0.5, r * 0.3, 5), mat(0x3f8a33, 0.8));
+      leaf.position.y = r * 0.95; leaf.rotation.x = Math.PI; g.add(leaf);
+    }
+  }
+  body.castShadow = true;
+  g.add(body);
+
+  // 눈
+  var eyeMat = mat(0x14161c, 0.3);
+  var whiteMat = mat(0xffffff, 0.3);
+  [-1, 1].forEach(function (s) {
+    var w = new THREE.Mesh(new THREE.SphereGeometry(r * 0.3, 10, 8), whiteMat);
+    w.position.set(s * r * 0.36, r * 0.25, r * 0.82);
+    g.add(w);
+    var e = new THREE.Mesh(new THREE.SphereGeometry(r * 0.16, 8, 6), eyeMat);
+    e.position.set(s * r * 0.36, r * 0.25, r * 1.0);
+    g.add(e);
+  });
+  g.userData.radius = r;
+  return g;
+}
+
+/* ------------------------------------------------------------------ *
+ *  물리 / 충돌
+ * ------------------------------------------------------------------ */
+
+function overlaps(p, r, h, b) {
+  return p.x + r > b.min.x && p.x - r < b.max.x &&
+         p.z + r > b.min.z && p.z - r < b.max.z &&
+         p.y + h > b.min.y && p.y < b.max.y;
+}
+
+function overlapsXZ(p, r, b) {
+  return p.x + r > b.min.x && p.x - r < b.max.x &&
+         p.z + r > b.min.z && p.z - r < b.max.z;
+}
+
+// 위치 p(발 기준)를 축별로 이동시키며 박스와 충돌 해결
+// ghost=true (트램펄린으로 날아가는 중)면 최고점에 닿을 때까지 가구를 통과한다.
+// 가구 모서리에 걸려 포물선이 끊기는 것을 막고, 최고점 이후 정상적으로 위에 착지한다.
+function moveAndCollide(p, r, h, vel, dt, ghost) {
+  var i, b, res = { grounded:false, tramp:null };
+
+  if (ghost) {
+    p.x += vel.x * dt;
+    p.z += vel.z * dt;
+    p.y += vel.y * dt;
+    if (p.y <= 0) { p.y = 0; vel.y = 0; res.grounded = true; }
+    return res;
+  }
+
+  // 세로 -> 가로 순서로 푼다. 가로를 먼저 풀면 물건 위로 떨어질 때
+  // 착지 대신 옆으로 밀려나 버린다.
+  // 착지 판정은 '이전 프레임 높이'로 한다 -> 프레임이 길어도 얇은 판을 뚫고 지나가지 않는다.
+  var prevY = p.y;
+  p.y += vel.y * dt;
+  for (i = 0; i < boxes.length; i++) {
+    b = boxes[i];
+    if (!overlapsXZ(p, r, b)) continue;
+    if (vel.y <= 0 && prevY >= b.max.y - 1e-4 && p.y < b.max.y) {   // 윗면에 착지
+      p.y = b.max.y;
+      res.grounded = true;
+      if (b.tramp) res.tramp = b;
+      vel.y = 0;
+    } else if (vel.y > 0 && prevY + h <= b.min.y + 1e-4 && p.y + h > b.min.y) { // 천장에 머리
+      p.y = b.min.y - h;
+      vel.y = 0;
+    }
+  }
+  if (p.y <= 0) { p.y = 0; vel.y = 0; res.grounded = true; }
+
+  p.x += vel.x * dt;
+  for (i = 0; i < boxes.length; i++) {
+    b = boxes[i];
+    if (!overlaps(p, r, h, b)) continue;
+    if (p.x < (b.min.x + b.max.x) / 2) p.x = b.min.x - r; else p.x = b.max.x + r;
+    vel.x = 0;
+  }
+
+  p.z += vel.z * dt;
+  for (i = 0; i < boxes.length; i++) {
+    b = boxes[i];
+    if (!overlaps(p, r, h, b)) continue;
+    if (p.z < (b.min.z + b.max.z) / 2) p.z = b.min.z - r; else p.z = b.max.z + r;
+    vel.z = 0;
+  }
+
+  return res;
+}
+
+// 실내/마당 경계 (벽 밖으로 못 나가게 안전망)
+function clampWorld(p) {
+  if (p.z < 5.0) {                      // 주방
+    p.x = Math.max(-4.9, Math.min(4.9, p.x));
+    p.z = Math.max(-4.9, Math.min(p.z, 5.4));
+  } else {                              // 마당
+    p.x = Math.max(-8.7, Math.min(8.7, p.x));
+    p.z = Math.min(17.7, p.z);
+  }
+}
+
+var NOT_CLIMBABLE = { '벽':1, '문틀':1, '울타리':1 };
+
+function groundHeightAt(x, z) {
+  var best = 0;
+  for (var i = 0; i < boxes.length; i++) {
+    var b = boxes[i];
+    if (NOT_CLIMBABLE[b.name]) continue;
+    if (x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z) {
+      if (b.max.y > best) best = b.max.y;   // 애벌레는 냉장고 위까지 타고 오른다
+    }
+  }
+  return best;
+}
+
+/* ------------------------------------------------------------------ *
+ *  플레이어
+ * ------------------------------------------------------------------ */
+
+var player = {
+  pos: new THREE.Vector3(0, 0, 3.0),
+  vel: new THREE.Vector3(),
+  yaw: 0,                // 처음에는 마당(문) 쪽을 봄 — 애벌레 반대편
+  grounded: true,
+  charIndex: 0,
+  mesh: null,
+  hidden: false,
+  hideName: '',
+  bounceT: 0,
+  launchT: 0
+};
+
+function setCharacter(index) {
+  if (player.mesh) scene.remove(player.mesh);
+  player.charIndex = index;
+  var def = CHARS[index];
+  player.mesh = makeBody(def);
+  scene.add(player.mesh);
+  document.getElementById('charName').textContent = def.name;
+}
+
+function charDef() { return CHARS[player.charIndex]; }
+
+/* ------------------------------------------------------------------ *
+ *  애벌레 (술래) — 블루베리 5개를 이은 크기
+ * ------------------------------------------------------------------ */
+
+var SEG_R = 0.15;        // 블루베리 한 알 정도
+var SEG_N = 5;
+var caterpillar = {
+  pos: new THREE.Vector3(-3.5, 0, -3.5),
+  dir: new THREE.Vector3(0, 0, 1),
+  speed: 2.3,
+  trail: [],
+  segs: [],
+  group: new THREE.Group(),
+  target: null,
+  wander: new THREE.Vector3(0, 0, 0),
+  wanderT: 0
+};
+scene.add(caterpillar.group);
+
+(function buildCaterpillar() {
+  var bodyMat = mat(0x7cc242, 0.55);
+  var headMat = mat(0x64a832, 0.5);
+  for (var i = 0; i < SEG_N; i++) {
+    var s = new THREE.Mesh(
+      new THREE.SphereGeometry(SEG_R * (i === 0 ? 1.15 : 1 - i * 0.04), 16, 12),
+      i === 0 ? headMat : bodyMat
+    );
+    s.castShadow = true;
+    caterpillar.group.add(s);
+    caterpillar.segs.push(s);
+    if (i === 0) {
+      [-1, 1].forEach(function (sd) {
+        var w = new THREE.Mesh(new THREE.SphereGeometry(SEG_R * 0.36, 10, 8), mat(0xffffff, 0.3));
+        w.position.set(sd * SEG_R * 0.45, SEG_R * 0.35, SEG_R * 0.85); s.add(w);
+        var e = new THREE.Mesh(new THREE.SphereGeometry(SEG_R * 0.19, 8, 6), mat(0x101216, 0.3));
+        e.position.set(sd * SEG_R * 0.45, SEG_R * 0.35, SEG_R * 1.05); s.add(e);
+      });
+      var a1 = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.18, 6), mat(0x4c8226, 0.7));
+      a1.position.set(-0.06, SEG_R * 1.05, 0.02); a1.rotation.z = 0.4; s.add(a1);
+      var a2 = a1.clone(); a2.position.x = 0.06; a2.rotation.z = -0.4; s.add(a2);
+    }
+  }
+  for (var j = 0; j < 200; j++) caterpillar.trail.push(caterpillar.pos.clone());
+})();
+
+/* ------------------------------------------------------------------ *
+ *  AI 친구들
+ * ------------------------------------------------------------------ */
+
+var WAYPOINTS = [
+  [-3.5, -1.5], [3.5, -1.0], [0, -2.0], [-2.0, 3.0], [3.0, 3.2], [-4.0, 0.5],
+  [0, 6.5], [-4.5, 9.0], [4.5, 10.0], [-1.0, 13.5], [5.5, 15.0], [-6.0, 15.5],
+  [1.5, 8.0], [7.0, 7.5], [-2.5, -4.0], [2.0, 1.5]
+];
+
+var friends = [];
+
+function spawnFriends() {
+  friends.forEach(function (f) { scene.remove(f.mesh); });
+  friends = [];
+  // 플레이어를 제외한 나머지 7종이 AI 친구
+  for (var i = 1; i < CHARS.length; i++) {
+    var def = CHARS[i];
+    var w = WAYPOINTS[(i * 3) % WAYPOINTS.length];
+    var f = {
+      def: def,
+      pos: new THREE.Vector3(w[0], 0, w[1]),
+      vel: new THREE.Vector3(),
+      mesh: makeBody(def),
+      goal: new THREE.Vector3(w[0], 0, w[1]),
+      alive: true,
+      grounded: true,
+      launchT: 0,
+      panic: 0,
+      hopT: Math.random() * 2
+    };
+    scene.add(f.mesh);
+    pickGoal(f);
+    friends.push(f);
+  }
+  updateFriendCount();
+}
+
+function pickGoal(f) {
+  var w = WAYPOINTS[(Math.random() * WAYPOINTS.length) | 0];
+  f.goal.set(w[0], 0, w[1]);
+}
+
+function updateFriendCount() {
+  var n = friends.filter(function (f) { return f.alive; }).length;
+  document.getElementById('friends').textContent = n;
+}
+
+/* ------------------------------------------------------------------ *
+ *  입력
+ * ------------------------------------------------------------------ */
+
+var keys = {};
+addEventListener('keydown', function (e) {
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code) >= 0) e.preventDefault();
+  keys[e.code] = true;
+  if (e.code === 'KeyR') restart();
+});
+addEventListener('keyup', function (e) { keys[e.code] = false; });
+
+var camYawOffset = 0, camPitch = 0.28, dragging = false, lastX = 0, lastY = 0;
+renderer.domElement.addEventListener('mousedown', function (e) { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+addEventListener('mouseup', function () { dragging = false; });
+addEventListener('mousemove', function (e) {
+  if (!dragging) return;
+  camYawOffset -= (e.clientX - lastX) * 0.005;
+  camPitch = Math.max(-0.1, Math.min(0.9, camPitch + (e.clientY - lastY) * 0.004));
+  lastX = e.clientX; lastY = e.clientY;
+});
+
+/* ------------------------------------------------------------------ *
+ *  게임 상태
+ * ------------------------------------------------------------------ */
+
+var game = { running:false, time:0, level:1, over:false, grace:0 };
+var GRACE = 3.5;   // 시작 직후 애벌레가 아직 눈치채지 못하는 시간(초)
+
+function restart() {
+  game.running = true; game.time = 0; game.level = 1; game.over = false; game.grace = GRACE;
+  player.pos.set(0, 0, 3.0);
+  player.vel.set(0, 0, 0);
+  player.yaw = 0;
+  player.hidden = false;
+  player.bounceT = 0; player.launchT = 0;
+  setCharacter(0);
+  caterpillar.pos.set(-3.5, 0, -4.0);
+  caterpillar.speed = 2.3;
+  for (var i = 0; i < caterpillar.trail.length; i++) caterpillar.trail[i].copy(caterpillar.pos);
+  spawnFriends();
+  camYawOffset = 0; camPitch = 0.28;
+  document.getElementById('start').classList.add('hide');
+  document.getElementById('over').classList.add('hide');
+  document.getElementById('lv').textContent = '1';
+  toast('레벨 1 — 설탕', '작은 구멍과 잔디밭에 숨을 수 있어요');
+}
+
+function gameOver(title, sub) {
+  game.running = false; game.over = true;
+  document.getElementById('overTitle').textContent = title;
+  document.getElementById('overSub').textContent = sub;
+  document.getElementById('ovLv').textContent = game.level;
+  document.getElementById('ovTime').textContent = fmt(game.time);
+  document.getElementById('ovChar').textContent = charDef().name;
+  document.getElementById('over').classList.remove('hide');
+}
+
+var toastTimer = null;
+function toast(text, sub) {
+  var el = document.getElementById('toast');
+  el.innerHTML = text + (sub ? '<small>' + sub + '</small>' : '');
+  el.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { el.classList.remove('on'); }, 2600);
+}
+
+function fmt(t) {
+  var m = Math.floor(t / 60), s = Math.floor(t % 60);
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+function levelUp() {
+  game.level++;
+  caterpillar.speed = 2.3 + (game.level - 1) * 0.42;
+  var next = Math.min(game.level - 1, CHARS.length - 1);
+  if (next !== player.charIndex) {
+    setCharacter(next);
+    // 새 몸이 바닥에 끼지 않도록 살짝 띄움
+    player.pos.y += 0.05;
+    toast('레벨 ' + game.level + ' — ' + CHARS[next].name + '(으)로 변신!', CHARS[next].note);
+  } else {
+    toast('레벨 ' + game.level + '!', '애벌레가 더 빨라집니다');
+  }
+  document.getElementById('lv').textContent = game.level;
+}
+
+/* ------------------------------------------------------------------ *
+ *  은신 판정
+ * ------------------------------------------------------------------ */
+
+function checkHiding() {
+  var def = charDef(), p = player.pos, i, z, d;
+
+  for (i = 0; i < holes.length; i++) {
+    z = holes[i];
+    d = Math.hypot(p.x - z.x, p.z - z.z);
+    if (d < z.r && def.fit <= z.fit && Math.abs(p.y - z.y) < 0.35) {
+      return z.name;
+    }
+  }
+  if (def.key === 'sugar') {
+    for (i = 0; i < grassZones.length; i++) {
+      z = grassZones[i];
+      if (Math.hypot(p.x - z.x, p.z - z.z) < z.r && p.y < 0.3) return '잔디밭 속';
+    }
+  }
+  if (def.key === 'blueberry') {
+    for (i = 0; i < blueZones.length; i++) {
+      z = blueZones[i];
+      if (Math.hypot(p.x - z.x, p.z - z.z) < z.r && Math.abs(p.y - z.y) < 0.4) return z.name;
+    }
+  }
+  return null;
+}
+
+function hideOptionsText() {
+  var def = charDef();
+  var n = holes.filter(function (h) { return def.fit <= h.fit; }).length;
+  if (def.key === 'sugar') return '작은 구멍 ' + n + '곳 + 잔디밭';
+  if (def.key === 'blueberry') return '작은 구멍 ' + n + '곳 + 파란 물건';
+  if (n === 0) return '숨을 곳 없음 — 계속 달리세요!';
+  return '들어갈 수 있는 구멍 ' + n + '곳';
+}
+
+/* ------------------------------------------------------------------ *
+ *  업데이트
+ * ------------------------------------------------------------------ */
+
+var tmpV = new THREE.Vector3();
+
+function updatePlayer(dt) {
+  var def = charDef();
+  var r = def.r, h = def.r * 2;
+
+  if (keys.ArrowLeft)  player.yaw += 2.6 * dt;
+  if (keys.ArrowRight) player.yaw -= 2.6 * dt;
+
+  var fwd = 0;
+  if (keys.ArrowUp) fwd += 1;
+  if (keys.ArrowDown) fwd -= 0.6;
+
+  var speed = def.speed * (player.hidden ? 0.55 : 1);
+  var wishX = Math.sin(player.yaw) * fwd * speed;
+  var wishZ = Math.cos(player.yaw) * fwd * speed;
+
+  // 공중에서는 방향 전환이 둔하고, 트램펄린으로 날아가는 동안에는 거의 조작되지 않음
+  var accel = player.grounded ? 18 : (player.launchT > 0 ? 0.4 : 6);
+  player.vel.x += (wishX - player.vel.x) * Math.min(1, accel * dt);
+  player.vel.z += (wishZ - player.vel.z) * Math.min(1, accel * dt);
+
+  if (keys.Space && player.grounded) {
+    player.vel.y = def.jump;
+    player.grounded = false;
+  }
+  player.vel.y -= G * dt;
+  if (player.vel.y < -22) player.vel.y = -22;
+
+  var res = moveAndCollide(player.pos, r, h, player.vel, dt, player.launchT > 0);
+  player.grounded = res.grounded;
+  clampWorld(player.pos);
+
+  if (res.tramp && player.bounceT <= 0) {
+    player.launchT = launch(player.pos, player.vel, res.tramp);
+    player.grounded = false;
+    player.bounceT = 0.3;
+    if (res.tramp.pad) res.tramp.pad.scale.y = 0.35;
+  }
+  player.bounceT -= dt;
+  player.launchT -= dt;
+
+  player.mesh.position.set(player.pos.x, player.pos.y + r, player.pos.z);
+  player.mesh.rotation.y = player.yaw;
+  // 굴러가는 느낌 (설탕은 각지게 통통)
+  var moving = Math.hypot(player.vel.x, player.vel.z);
+  if (def.shape === 'cube') {
+    player.mesh.position.y += Math.abs(Math.sin(game.time * 12)) * moving * 0.012;
+  } else {
+    player.mesh.rotation.x = -(game.time * moving * 1.1) % (Math.PI * 2);
+  }
+
+  var hideName = checkHiding();
+  player.hidden = !!hideName;
+  player.hideName = hideName || '';
+  player.mesh.visible = true;
+  if (player.hidden) {
+    player.mesh.traverse(function (o) { if (o.isMesh) { o.material.transparent = true; o.material.opacity = 0.45; } });
+  } else {
+    player.mesh.traverse(function (o) { if (o.isMesh) { o.material.opacity = 1; o.material.transparent = false; } });
+  }
+}
+
+function updateCaterpillar(dt) {
+  var c = caterpillar;
+
+  // 목표 고르기: 숨지 않은 플레이어를 최우선, 그 다음 가까운 AI 친구
+  var target = null, bestD = Infinity;
+  if (!player.hidden && game.grace <= 0) {
+    target = player.pos; bestD = c.pos.distanceTo(player.pos);
+  }
+  if (game.grace <= 0) {
+    friends.forEach(function (f) {
+      if (!f.alive) return;
+      var d = c.pos.distanceTo(f.pos);
+      if (d < bestD * 0.75) { bestD = d; target = f.pos; }
+    });
+  }
+
+  var dir = tmpV;
+  if (target) {
+    dir.set(target.x - c.pos.x, 0, target.z - c.pos.z);
+  } else {
+    // 못 찾으면 배회
+    c.wanderT -= dt;
+    if (c.wanderT <= 0) {
+      var w = WAYPOINTS[(Math.random() * WAYPOINTS.length) | 0];
+      c.wander.set(w[0], 0, w[1]);
+      c.wanderT = 3 + Math.random() * 2;
+    }
+    dir.set(c.wander.x - c.pos.x, 0, c.wander.z - c.pos.z);
+  }
+  if (dir.lengthSq() < 0.0001) dir.set(0, 0, 1);
+  dir.normalize();
+
+  // 애벌레는 어디든 갈 수 있다 — 가구도 타고 넘는다
+  c.dir.lerp(dir, Math.min(1, 4 * dt)).normalize();
+  var sp = c.speed * (target === player.pos ? 1 : 0.9);
+  c.pos.x += c.dir.x * sp * dt;
+  c.pos.z += c.dir.z * sp * dt;
+
+  // 문을 통과할 때는 벽을 못 뚫게 최소한만 제한
+  if (Math.abs(c.pos.z - 5.1) < 0.35 && Math.abs(c.pos.x) > 0.95) {
+    c.pos.z = c.pos.z < 5.1 ? 4.75 : 5.45;
+  }
+  c.pos.x = Math.max(-8.6, Math.min(8.6, c.pos.x));
+  c.pos.z = Math.max(-4.8, Math.min(17.6, c.pos.z));
+
+  var gh = groundHeightAt(c.pos.x, c.pos.z);
+  c.pos.y += (gh - c.pos.y) * Math.min(1, 6 * dt);
+
+  // 몸통 궤적
+  c.trail.unshift(c.pos.clone());
+  if (c.trail.length > 200) c.trail.pop();
+  var gap = 9;
+  for (var i = 0; i < c.segs.length; i++) {
+    var t = c.trail[Math.min(c.trail.length - 1, i * gap)];
+    var wiggle = Math.sin(game.time * 9 - i * 0.8) * 0.045;
+    c.segs[i].position.set(t.x, t.y + SEG_R + Math.abs(Math.sin(game.time * 9 - i * 0.9)) * 0.05, t.z);
+    c.segs[i].position.x += -c.dir.z * wiggle;
+    c.segs[i].position.z += c.dir.x * wiggle;
+  }
+  c.segs[0].rotation.y = Math.atan2(c.dir.x, c.dir.z);
+
+  // 접촉 판정
+  var def = charDef();
+  var pd = Math.hypot(c.pos.x - player.pos.x, c.pos.z - player.pos.z);
+  var py = player.pos.y + def.r;
+  if (pd < SEG_R + def.r + 0.06 && Math.abs(py - (c.pos.y + SEG_R)) < def.r + SEG_R + 0.3) {
+    gameOver('🐛 잡혔다!', '애벌레에게 닿아 ' + def.name + '이(가) 잡혔습니다.');
+  }
+
+  friends.forEach(function (f) {
+    if (!f.alive) return;
+    if (c.pos.distanceTo(f.pos) < SEG_R + f.def.r + 0.05) {
+      f.alive = false;
+      scene.remove(f.mesh);
+      updateFriendCount();
+      toast('😢 ' + f.def.name + ' 아웃!', '남은 친구 ' + friends.filter(function (x) { return x.alive; }).length + '명');
+    }
+  });
+}
+
+function updateFriends(dt) {
+  friends.forEach(function (f) {
+    if (!f.alive) return;
+    var r = f.def.r, h = r * 2;
+    var dx, dz, d = f.pos.distanceTo(caterpillar.pos);
+
+    if (d < 4.2) {
+      // 애벌레를 봤다 -> 도망
+      f.panic = 1.6;
+      dx = f.pos.x - caterpillar.pos.x;
+      dz = f.pos.z - caterpillar.pos.z;
+      var len = Math.hypot(dx, dz) || 1;
+      dx /= len; dz /= len;
+      // 가끔 벽에 몰리지 않게 살짝 옆으로
+      var side = Math.sin(game.time * 1.7 + f.pos.x) * 0.5;
+      var nx = dx - dz * side, nz = dz + dx * side;
+      len = Math.hypot(nx, nz) || 1;
+      f.goal.set(f.pos.x + (nx / len) * 5, 0, f.pos.z + (nz / len) * 5);
+    } else {
+      f.panic = Math.max(0, f.panic - dt);
+      if (Math.hypot(f.goal.x - f.pos.x, f.goal.z - f.pos.z) < 0.6) pickGoal(f);
+    }
+
+    if (f.launchT <= 0) {
+      dx = f.goal.x - f.pos.x; dz = f.goal.z - f.pos.z;
+      var l = Math.hypot(dx, dz) || 1;
+      var sp = f.def.speed * (f.panic > 0 ? 1.15 : 0.6);
+      f.vel.x += ((dx / l) * sp - f.vel.x) * Math.min(1, 10 * dt);
+      f.vel.z += ((dz / l) * sp - f.vel.z) * Math.min(1, 10 * dt);
+    }
+
+    // 가끔 점프
+    f.hopT -= dt;
+    if (f.hopT <= 0 && f.grounded && f.launchT <= 0) {
+      f.vel.y = f.def.jump * (f.panic > 0 ? 1 : 0.75);
+      f.grounded = false;
+      f.hopT = f.panic > 0 ? 0.7 + Math.random() : 2 + Math.random() * 3;
+    }
+    f.vel.y -= G * dt;
+
+    f.launchT -= dt;
+    var res = moveAndCollide(f.pos, r, h, f.vel, dt, f.launchT > 0);
+    f.grounded = res.grounded;
+    if (res.tramp) {
+      f.launchT = launch(f.pos, f.vel, res.tramp);
+      f.grounded = false;
+    }
+    clampWorld(f.pos);
+
+    f.mesh.position.set(f.pos.x, f.pos.y + r, f.pos.z);
+    f.mesh.rotation.y = Math.atan2(f.vel.x, f.vel.z);
+    if (f.def.shape !== 'cube') {
+      f.mesh.rotation.x = -(game.time * Math.hypot(f.vel.x, f.vel.z) * 1.0) % (Math.PI * 2);
+    }
+  });
+}
+
+function updateCamera(dt) {
+  var def = charDef();
+  var dist = 0.75 + def.r * 5.0;
+  var height = 0.28 + def.r * 3.0;
+  var yaw = player.yaw + camYawOffset;
+  var want = new THREE.Vector3(
+    player.pos.x - Math.sin(yaw) * dist * Math.cos(camPitch),
+    player.pos.y + height + Math.sin(camPitch) * dist,
+    player.pos.z - Math.cos(yaw) * dist * Math.cos(camPitch)
+  );
+  if (want.y < 0.25) want.y = 0.25;
+  camera.position.lerp(want, Math.min(1, 9 * dt));
+  camera.lookAt(player.pos.x, player.pos.y + def.r * 1.6, player.pos.z);
+}
+
+function updateHUD() {
+  document.getElementById('time').textContent = fmt(game.time);
+  var frac = (game.time % LEVEL_TIME) / LEVEL_TIME;
+  document.getElementById('barIn').style.width = (frac * 100).toFixed(1) + '%';
+
+  var tag = document.getElementById('hideTag');
+  var info = document.getElementById('hideInfo');
+  var d = Math.hypot(caterpillar.pos.x - player.pos.x, caterpillar.pos.z - player.pos.z);
+  if (player.hidden) {
+    tag.className = 'tag safe'; tag.textContent = '숨음';
+    info.textContent = player.hideName;
+  } else if (d < 3) {
+    tag.className = 'tag warn'; tag.textContent = '위험!';
+    info.textContent = hideOptionsText();
+  } else {
+    tag.className = 'tag danger'; tag.textContent = '노출됨';
+    info.textContent = hideOptionsText();
+  }
+  document.getElementById('dist').textContent = '애벌레 거리 ' + d.toFixed(1) + 'm';
+}
+
+/* ------------------------------------------------------------------ *
+ *  루프
+ * ------------------------------------------------------------------ */
+
+var prev = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  var dt = Math.min(0.05, (now - prev) / 1000);
+  prev = now;
+
+  if (game.running) {
+    var before = Math.floor(game.time / LEVEL_TIME);
+    game.time += dt;
+    if (game.grace > 0) game.grace -= dt;
+    if (Math.floor(game.time / LEVEL_TIME) > before) levelUp();
+
+    updatePlayer(dt);
+    updateFriends(dt);
+    updateCaterpillar(dt);
+    updateHUD();
+  }
+
+  // 트램펄린 발판이 눌렸다가 돌아옴
+  boxes.forEach(function (b) {
+    if (b.pad && b.pad.scale.y < 1) b.pad.scale.y = Math.min(1, b.pad.scale.y + dt * 4);
+  });
+
+  updateCamera(dt);
+  renderer.render(scene, camera);
+}
+
+/* ------------------------------------------------------------------ *
+ *  시작 화면
+ * ------------------------------------------------------------------ */
+
+(function fillCharGrid() {
+  var html = '';
+  CHARS.forEach(function (c, i) {
+    var col = '#' + ('000000' + c.color.toString(16)).slice(-6);
+    html += '<div class="cell"><b><span class="dot" style="background:' + col + '"></span>' +
+            (i + 1) + '. ' + c.name + '</b><span>' + c.note + '</span></div>';
+  });
+  document.getElementById('charGrid').innerHTML = html;
+})();
+
+setCharacter(0);
+player.mesh.position.set(player.pos.x, player.pos.y + CHARS[0].r, player.pos.z);
+spawnFriends();
+window.FOOD_GAME = { player:player, caterpillar:caterpillar, boxes:boxes, holes:holes, game:game, CHARS:CHARS };
+document.getElementById('startBtn').onclick = restart;
+document.getElementById('againBtn').onclick = restart;
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
