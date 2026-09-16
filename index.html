@@ -68,6 +68,13 @@
   .stats { display:flex; gap:26px; justify-content:center; margin:18px 0 24px; }
   .stats div b { display:block; font-size:28px; }
   .stats div span { opacity:.6; font-size:13px; }
+
+  #mouseHint {
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:10;
+    background:rgba(12,16,24,.6); border:1px solid rgba(255,255,255,.12);
+    border-radius:999px; padding:7px 16px; font-size:13px; opacity:.8;
+    pointer-events:none;
+  }
 </style>
 </head>
 <body>
@@ -88,19 +95,22 @@
 
 <div id="toast"></div>
 
+<div id="mouseHint">화면을 클릭하면 마우스로 시점을 돌릴 수 있습니다 (ESC로 해제)</div>
+
 <div id="start" class="screen">
   <div class="card">
     <h1>🍬 설탕 도망쳐!</h1>
     <p class="sub">주방에 애벌레가 나타났다. AI 친구들과 함께 살아남으세요.</p>
     <div class="keys">
-      <div class="key"><b>↑ ↓</b> 앞뒤 이동</div>
-      <div class="key"><b>← →</b> 방향 회전</div>
+      <div class="key"><b>↑ ↓</b> 앞 / 뒤로 이동</div>
+      <div class="key"><b>← →</b> 왼쪽 / 오른쪽으로 이동</div>
       <div class="key"><b>Space</b> 점프</div>
-      <div class="key"><b>마우스 드래그</b> 시점</div>
+      <div class="key"><b>마우스</b> 카메라 회전</div>
       <div class="key"><b>R</b> 재시작</div>
     </div>
     <div class="grid" id="charGrid"></div>
     <p class="sub" style="margin-bottom:20px">
+      화살표 키는 항상 <b>화면에서 보이는 방향 그대로</b> 움직입니다. 시점은 마우스로 돌립니다.<br>
       1분마다 레벨이 올라 다음 캐릭터로 변신합니다. 몸집이 커질수록 숨을 곳이 줄어듭니다.<br>
       트램펄린(노란 발판)을 밟으면 서랍·테이블·책상·냉장고 위로 튕겨 올라갑니다.
     </p>
@@ -280,7 +290,7 @@ solid( 8.8,  9.0, 0, 0.9, 5.0, 18.0, 0, { material:fenceMat, name:'울타리' })
 solid(3.0, 4.7, 0, 2.2, -4.9, -3.3, 0xdfe4e8, { rough:0.35, metal:0.35, name:'냉장고' });
 solid(2.98, 3.02, 0.7, 1.5, -4.6, -3.6, 0x9aa3aa, { noCollide:true, metal:0.6 }); // 손잡이
 // 냉장고 밑 틈새 = 중간 크기 구멍
-holes.push({ x:3.85, z:-3.15, y:0, r:0.5, fit:4, name:'냉장고 밑 틈새' });
+holes.push({ x:3.15, z:-3.20, y:0, r:0.42, fit:4, name:'냉장고 밑 틈새' });
 
 /* ---- 오븐 (왼쪽 안쪽) ---- */
 solid(-4.7, -3.0, 0, 1.0, -4.9, -3.4, 0x4a4f57, { rough:0.4, metal:0.5, name:'오븐' });
@@ -662,7 +672,13 @@ function spawnFriends() {
       grounded: true,
       launchT: 0,
       panic: 0,
-      hopT: Math.random() * 2
+      hidden: false,
+      hideSpot: null,
+      hideCool: 0,
+      yaw: 0,
+      stuckT: Math.random() * 0.6,
+      lastX: w[0],
+      lastZ: w[1]
     };
     scene.add(f.mesh);
     pickGoal(f);
@@ -671,9 +687,82 @@ function spawnFriends() {
   updateFriendCount();
 }
 
+// 주방(z<5)과 마당(z>=5)은 문으로만 오간다
+function region(z) { return z < 5 ? 0 : 1; }
+
+function outOfBounds(x, z) {
+  if (z < 5) return x < -4.8 || x > 4.8 || z < -4.8;
+  return x < -8.6 || x > 8.6 || z > 17.5;
+}
+
+// (x,z)에 서 있을 수 있는지 — 발끝 높이에서 가구에 파묻히는지 본다
+function blockedAt(x, z, y, r) {
+  for (var i = 0; i < boxes.length; i++) {
+    var b = boxes[i];                            // 트램펄린도 피한다 (원치 않게 튕겨 오르지 않도록)
+    if (x + r > b.min.x && x - r < b.max.x &&
+        z + r > b.min.z && z - r < b.max.z &&
+        y + 0.05 < b.max.y && y + r * 2 > b.min.y) return true;
+  }
+  return false;
+}
+
+// 그 방향으로 dist 만큼 걸어갈 수 있는지 미리 훑어본다
+function pathClear(f, dx, dz, dist) {
+  for (var t = 0.45; t <= dist; t += 0.45) {
+    var x = f.pos.x + dx * t, z = f.pos.z + dz * t;
+    if (outOfBounds(x, z) || blockedAt(x, z, f.pos.y, f.def.r)) return false;
+  }
+  return true;
+}
+
+// 바로 앞을 막고 있는 것의 윗면 높이 (뛰어넘을 만한 턱인지 판단용)
+function ledgeAhead(f, dx, dz) {
+  var x = f.pos.x + dx * (f.def.r + 0.3), z = f.pos.z + dz * (f.def.r + 0.3), top = 0;
+  for (var i = 0; i < boxes.length; i++) {
+    var b = boxes[i];   // 트램펄린도 포함 — 옆면에 걸려 멈추지 않고 올라선다
+    if (x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z &&
+        b.max.y > f.pos.y + 0.03 && b.max.y > top) top = b.max.y;
+  }
+  return top;
+}
+
+// 몇 군데 후보 중 '멀고, 애벌레에서 떨어져 있고, 갈 수 있는' 곳을 고른다
 function pickGoal(f) {
-  var w = WAYPOINTS[(Math.random() * WAYPOINTS.length) | 0];
-  f.goal.set(w[0], 0, w[1]);
+  var best = null, bestScore = -Infinity;
+  for (var k = 0; k < 7; k++) {
+    var w = WAYPOINTS[(Math.random() * WAYPOINTS.length) | 0];
+    var dGoal = Math.hypot(w[0] - f.pos.x, w[1] - f.pos.z);
+    var dCat = Math.hypot(w[0] - caterpillar.pos.x, w[1] - caterpillar.pos.z);
+    if (dGoal < 1.5) continue;                   // 제자리 목적지는 의미 없다
+    var score = Math.min(dCat, 12) + Math.min(dGoal, 7) * 0.4 + Math.random();
+    if (score > bestScore) { bestScore = score; best = w; }
+  }
+  if (best) f.goal.set(best[0], 0, best[1]);
+}
+
+// 애벌레 반대쪽으로, 실제로 뚫려 있는 방향을 고른다 (구석으로 몰리지 않게)
+function fleeDir(f) {
+  var away = Math.atan2(f.pos.x - caterpillar.pos.x, f.pos.z - caterpillar.pos.z);
+  var bx = Math.sin(away), bz = Math.cos(away), bestScore = -Infinity;
+  for (var i = 0; i <= 14; i++) {
+    var a = away + (i - 7) * 0.30;               // 뒤쪽을 중심으로 부채꼴 탐색
+    var dx = Math.sin(a), dz = Math.cos(a);
+    var score = Math.cos(a - away) * 1.5 + (pathClear(f, dx, dz, 2.4) ? 3 : -3);
+    if (score > bestScore) { bestScore = score; bx = dx; bz = dz; }
+  }
+  return { x:bx, z:bz };
+}
+
+// 몸집이 들어가는 은신처 중 가까운 것
+function nearestHole(f) {
+  var best = null, bestD = 4.5;
+  for (var i = 0; i < holes.length; i++) {
+    var hz = holes[i];
+    if (f.def.fit > hz.fit) continue;
+    var d = Math.hypot(hz.x - f.pos.x, hz.z - f.pos.z);
+    if (d < bestD && region(hz.z) === region(f.pos.z)) { bestD = d; best = hz; }
+  }
+  return best;
 }
 
 function updateFriendCount() {
@@ -693,14 +782,35 @@ addEventListener('keydown', function (e) {
 });
 addEventListener('keyup', function (e) { keys[e.code] = false; });
 
-var camYawOffset = 0, camPitch = 0.28, dragging = false, lastX = 0, lastY = 0;
-renderer.domElement.addEventListener('mousedown', function (e) { dragging = true; lastX = e.clientX; lastY = e.clientY; });
+// 카메라는 마우스가 전담한다. 화면을 한 번 클릭하면 마우스 커서가 잠기고
+// 그때부터는 드래그 없이 마우스를 움직이는 대로 시점이 돌아간다. (ESC로 해제)
+var camYaw = 0, camPitch = 0.28;
+var dragging = false, lastX = 0, lastY = 0;
+
+function locked() { return document.pointerLockElement === renderer.domElement; }
+
+function turnCamera(mx, my) {
+  camYaw -= mx * 0.0026;
+  camPitch = Math.max(-0.15, Math.min(0.95, camPitch + my * 0.0022));
+}
+
+renderer.domElement.addEventListener('click', function () {
+  if (!locked() && renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+});
+renderer.domElement.addEventListener('mousedown', function (e) {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+});
 addEventListener('mouseup', function () { dragging = false; });
 addEventListener('mousemove', function (e) {
-  if (!dragging) return;
-  camYawOffset -= (e.clientX - lastX) * 0.005;
-  camPitch = Math.max(-0.1, Math.min(0.9, camPitch + (e.clientY - lastY) * 0.004));
-  lastX = e.clientX; lastY = e.clientY;
+  if (locked()) {
+    turnCamera(e.movementX || 0, e.movementY || 0);
+  } else if (dragging) {                   // 포인터 락이 안 되는 환경에서는 드래그로
+    turnCamera(e.clientX - lastX, e.clientY - lastY);
+    lastX = e.clientX; lastY = e.clientY;
+  }
+});
+document.addEventListener('pointerlockchange', function () {
+  document.getElementById('mouseHint').style.display = locked() ? 'none' : '';
 });
 
 /* ------------------------------------------------------------------ *
@@ -722,7 +832,7 @@ function restart() {
   caterpillar.speed = 2.3;
   for (var i = 0; i < caterpillar.trail.length; i++) caterpillar.trail[i].copy(caterpillar.pos);
   spawnFriends();
-  camYawOffset = 0; camPitch = 0.28;
+  camYaw = 0; camPitch = 0.28;
   document.getElementById('start').classList.add('hide');
   document.getElementById('over').classList.add('hide');
   document.getElementById('lv').textContent = '1';
@@ -816,16 +926,33 @@ function updatePlayer(dt) {
   var def = charDef();
   var r = def.r, h = def.r * 2;
 
-  if (keys.ArrowLeft)  player.yaw += 2.6 * dt;
-  if (keys.ArrowRight) player.yaw -= 2.6 * dt;
-
-  var fwd = 0;
+  // 이동은 항상 '화면 기준'이다.
+  // ↑ 화면 안쪽, ↓ 화면 앞쪽, ← 화면 왼쪽, → 화면 오른쪽. 방향이 헷갈릴 일이 없다.
+  var fwd = 0, side = 0;
   if (keys.ArrowUp) fwd += 1;
-  if (keys.ArrowDown) fwd -= 0.6;
+  if (keys.ArrowDown) fwd -= 1;
+  if (keys.ArrowLeft) side -= 1;
+  if (keys.ArrowRight) side += 1;
+
+  // 카메라가 보는 방향과 그 오른쪽 방향
+  var camFx = Math.sin(camYaw), camFz = Math.cos(camYaw);
+  var camRx = -camFz,           camRz = camFx;
+
+  var mx = camFx * fwd + camRx * side;
+  var mz = camFz * fwd + camRz * side;
+  var mlen = Math.hypot(mx, mz);
+  if (mlen > 1) { mx /= mlen; mz /= mlen; }
 
   var speed = def.speed * (player.hidden ? 0.55 : 1);
-  var wishX = Math.sin(player.yaw) * fwd * speed;
-  var wishZ = Math.cos(player.yaw) * fwd * speed;
+  var wishX = mx * speed;
+  var wishZ = mz * speed;
+
+  // 캐릭터는 실제로 가는 쪽을 바라본다
+  if (mlen > 0.01) {
+    var want = Math.atan2(mx, mz);
+    var diff = ((want - player.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    player.yaw += diff * Math.min(1, 12 * dt);
+  }
 
   // 공중에서는 방향 전환이 둔하고, 트램펄린으로 날아가는 동안에는 거의 조작되지 않음
   var accel = player.grounded ? 18 : (player.launchT > 0 ? 0.4 : 6);
@@ -865,12 +992,7 @@ function updatePlayer(dt) {
   var hideName = checkHiding();
   player.hidden = !!hideName;
   player.hideName = hideName || '';
-  player.mesh.visible = true;
-  if (player.hidden) {
-    player.mesh.traverse(function (o) { if (o.isMesh) { o.material.transparent = true; o.material.opacity = 0.45; } });
-  } else {
-    player.mesh.traverse(function (o) { if (o.isMesh) { o.material.opacity = 1; o.material.transparent = false; } });
-  }
+  setGhosted(player.mesh, player.hidden);
 }
 
 function updateCaterpillar(dt) {
@@ -883,7 +1005,7 @@ function updateCaterpillar(dt) {
   }
   if (game.grace <= 0) {
     friends.forEach(function (f) {
-      if (!f.alive) return;
+      if (!f.alive || f.hidden) return;
       var d = c.pos.distanceTo(f.pos);
       if (d < bestD * 0.75) { bestD = d; target = f.pos; }
     });
@@ -943,7 +1065,7 @@ function updateCaterpillar(dt) {
   }
 
   friends.forEach(function (f) {
-    if (!f.alive) return;
+    if (!f.alive || f.hidden) return;
     if (c.pos.distanceTo(f.pos) < SEG_R + f.def.r + 0.05) {
       f.alive = false;
       scene.remove(f.mesh);
@@ -953,46 +1075,94 @@ function updateCaterpillar(dt) {
   });
 }
 
+function setGhosted(mesh, on) {
+  mesh.traverse(function (o) {
+    if (!o.isMesh) return;
+    o.material.transparent = on;
+    o.material.opacity = on ? 0.45 : 1;
+  });
+}
+
 function updateFriends(dt) {
   friends.forEach(function (f) {
     if (!f.alive) return;
     var r = f.def.r, h = r * 2;
-    var dx, dz, d = f.pos.distanceTo(caterpillar.pos);
+    var catD = f.pos.distanceTo(caterpillar.pos);
 
-    if (d < 4.2) {
-      // 애벌레를 봤다 -> 도망
-      f.panic = 1.6;
-      dx = f.pos.x - caterpillar.pos.x;
-      dz = f.pos.z - caterpillar.pos.z;
-      var len = Math.hypot(dx, dz) || 1;
-      dx /= len; dz /= len;
-      // 가끔 벽에 몰리지 않게 살짝 옆으로
-      var side = Math.sin(game.time * 1.7 + f.pos.x) * 0.5;
-      var nx = dx - dz * side, nz = dz + dx * side;
-      len = Math.hypot(nx, nz) || 1;
-      f.goal.set(f.pos.x + (nx / len) * 5, 0, f.pos.z + (nz / len) * 5);
+    /* --- 무엇을 할지 정한다 --- */
+    if (catD < 4.5) f.panic = 1.8; else f.panic = Math.max(0, f.panic - dt);
+
+    // 몸집이 들어가는 은신처가 가까우면 숨는다 (겁먹었을 때만)
+    f.hideCool -= dt;
+    if (f.panic > 0 && !f.hideSpot && f.hideCool <= 0) f.hideSpot = nearestHole(f);
+    if (f.hideSpot && (f.panic <= 0 || catD > 6.5)) f.hideSpot = null;
+
+    var aimX, aimZ, sp;
+
+    if (f.hideSpot) {
+      aimX = f.hideSpot.x; aimZ = f.hideSpot.z;
+      sp = f.def.speed * 1.15;
+    } else if (f.panic > 0) {
+      var fd = fleeDir(f);
+      aimX = f.pos.x + fd.x * 4; aimZ = f.pos.z + fd.z * 4;
+      sp = f.def.speed * 1.15;
     } else {
-      f.panic = Math.max(0, f.panic - dt);
-      if (Math.hypot(f.goal.x - f.pos.x, f.goal.z - f.pos.z) < 0.6) pickGoal(f);
+      if (Math.hypot(f.goal.x - f.pos.x, f.goal.z - f.pos.z) < 0.7) pickGoal(f);
+      // 다른 구역의 목적지는 문을 거쳐서 간다
+      if (region(f.pos.z) !== region(f.goal.z)) {
+        aimX = 0; aimZ = region(f.pos.z) === 0 ? 5.5 : 4.5;
+      } else {
+        aimX = f.goal.x; aimZ = f.goal.z;
+      }
+      sp = f.def.speed * 0.62;
     }
+
+    var dx = aimX - f.pos.x, dz = aimZ - f.pos.z;
+    var l = Math.hypot(dx, dz) || 1;
+    dx /= l; dz /= l;
+
+    // 앞이 막혀 있으면 뚫린 쪽으로 돌아간다 (벽에 계속 부딪히지 않게)
+    if (!pathClear(f, dx, dz, 1.3)) {
+      for (var t = 1; t <= 5; t++) {
+        var a = Math.atan2(dx, dz);
+        var cand = [a + t * 0.45, a - t * 0.45];
+        var found = false;
+        for (var c = 0; c < 2; c++) {
+          var nx = Math.sin(cand[c]), nz = Math.cos(cand[c]);
+          if (pathClear(f, nx, nz, 1.3)) { dx = nx; dz = nz; found = true; break; }
+        }
+        if (found) break;
+      }
+    }
+
+    /* --- 서로 겹치지 않게 살짝 밀어낸다 --- */
+    for (var j = 0; j < friends.length; j++) {
+      var o = friends[j];
+      if (o === f || !o.alive) continue;
+      var ox = f.pos.x - o.pos.x, oz = f.pos.z - o.pos.z;
+      var od = Math.hypot(ox, oz);
+      var min = r + o.def.r + 0.25;
+      if (od > 0.001 && od < min) { dx += (ox / od) * 0.9; dz += (oz / od) * 0.9; }
+    }
+    var dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
 
     if (f.launchT <= 0) {
-      dx = f.goal.x - f.pos.x; dz = f.goal.z - f.pos.z;
-      var l = Math.hypot(dx, dz) || 1;
-      var sp = f.def.speed * (f.panic > 0 ? 1.15 : 0.6);
-      f.vel.x += ((dx / l) * sp - f.vel.x) * Math.min(1, 10 * dt);
-      f.vel.z += ((dz / l) * sp - f.vel.z) * Math.min(1, 10 * dt);
+      f.vel.x += (dx * sp - f.vel.x) * Math.min(1, 9 * dt);
+      f.vel.z += (dz * sp - f.vel.z) * Math.min(1, 9 * dt);
     }
 
-    // 가끔 점프
-    f.hopT -= dt;
-    if (f.hopT <= 0 && f.grounded && f.launchT <= 0) {
-      f.vel.y = f.def.jump * (f.panic > 0 ? 1 : 0.75);
-      f.grounded = false;
-      f.hopT = f.panic > 0 ? 0.7 + Math.random() : 2 + Math.random() * 3;
+    /* --- 점프는 넘어야 할 턱이 있을 때만 --- */
+    if (f.grounded && f.launchT <= 0) {
+      var top = ledgeAhead(f, dx, dz);
+      var reach = f.pos.y + (f.def.jump * f.def.jump) / (2 * G) - 0.04;
+      if (top > f.pos.y + 0.03 && top <= reach) {
+        f.vel.y = f.def.jump;
+        f.grounded = false;
+      }
     }
     f.vel.y -= G * dt;
 
+    /* --- 이동 --- */
     f.launchT -= dt;
     var res = moveAndCollide(f.pos, r, h, f.vel, dt, f.launchT > 0);
     f.grounded = res.grounded;
@@ -1002,26 +1172,73 @@ function updateFriends(dt) {
     }
     clampWorld(f.pos);
 
+    /* --- 끼었으면 포기하고 다른 곳으로 --- */
+    f.stuckT += dt;
+    if (f.stuckT > 0.7) {
+      if (Math.hypot(f.pos.x - f.lastX, f.pos.z - f.lastZ) < 0.18 && f.launchT <= 0) {
+        if (f.hideSpot) { f.hideSpot = null; f.hideCool = 2.5; }   // 그 은신처는 잠시 포기
+        else pickGoal(f);
+      }
+      f.lastX = f.pos.x; f.lastZ = f.pos.z; f.stuckT = 0;
+    }
+
+    /* --- 은신 상태 --- */
+    var wasHidden = f.hidden;
+    f.hidden = !!(f.hideSpot &&
+      Math.hypot(f.pos.x - f.hideSpot.x, f.pos.z - f.hideSpot.z) < f.hideSpot.r &&
+      Math.abs(f.pos.y - f.hideSpot.y) < 0.35);
+    if (f.hidden !== wasHidden) setGhosted(f.mesh, f.hidden);
+
+    /* --- 표시 --- */
     f.mesh.position.set(f.pos.x, f.pos.y + r, f.pos.z);
-    f.mesh.rotation.y = Math.atan2(f.vel.x, f.vel.z);
+    var speed2 = Math.hypot(f.vel.x, f.vel.z);
+    if (speed2 > 0.15) {                         // 멈춰 있을 때 덜덜 떨지 않게
+      var wantYaw = Math.atan2(f.vel.x, f.vel.z);
+      var diff = ((wantYaw - f.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+      f.yaw += diff * Math.min(1, 10 * dt);
+    }
+    f.mesh.rotation.y = f.yaw;
     if (f.def.shape !== 'cube') {
-      f.mesh.rotation.x = -(game.time * Math.hypot(f.vel.x, f.vel.z) * 1.0) % (Math.PI * 2);
+      f.mesh.rotation.x = -(game.time * speed2) % (Math.PI * 2);
     }
   });
+}
+
+function cameraBlocked(x, y, z) {
+  var pad = 0.07;
+  for (var i = 0; i < boxes.length; i++) {
+    var b = boxes[i];
+    if (x > b.min.x - pad && x < b.max.x + pad &&
+        y > b.min.y - pad && y < b.max.y + pad &&
+        z > b.min.z - pad && z < b.max.z + pad) return true;
+  }
+  return false;
 }
 
 function updateCamera(dt) {
   var def = charDef();
   var dist = 0.75 + def.r * 5.0;
   var height = 0.28 + def.r * 3.0;
-  var yaw = player.yaw + camYawOffset;
   var want = new THREE.Vector3(
-    player.pos.x - Math.sin(yaw) * dist * Math.cos(camPitch),
+    player.pos.x - Math.sin(camYaw) * dist * Math.cos(camPitch),
     player.pos.y + height + Math.sin(camPitch) * dist,
-    player.pos.z - Math.cos(yaw) * dist * Math.cos(camPitch)
+    player.pos.z - Math.cos(camYaw) * dist * Math.cos(camPitch)
   );
-  if (want.y < 0.25) want.y = 0.25;
-  camera.position.lerp(want, Math.min(1, 9 * dt));
+  if (want.y < 0.15) want.y = 0.15;
+
+  // 캐릭터와 카메라 사이에 가구가 있으면 그 앞까지 당겨온다 (식탁 속으로 들어가지 않게)
+  var eye = new THREE.Vector3(player.pos.x, player.pos.y + def.r * 1.6, player.pos.z);
+  var ray = want.clone().sub(eye);
+  var hit = 1;
+  for (var t = 0.2; t <= 1.0; t += 0.1) {
+    if (cameraBlocked(eye.x + ray.x * t, eye.y + ray.y * t, eye.z + ray.z * t)) {
+      hit = Math.max(0.18, t - 0.1);
+      break;
+    }
+  }
+  want.copy(eye).addScaledVector(ray, hit);
+
+  camera.position.lerp(want, Math.min(1, (hit < 1 ? 18 : 9) * dt));
   camera.lookAt(player.pos.x, player.pos.y + def.r * 1.6, player.pos.z);
 }
 
@@ -1094,7 +1311,12 @@ function loop(now) {
 setCharacter(0);
 player.mesh.position.set(player.pos.x, player.pos.y + CHARS[0].r, player.pos.z);
 spawnFriends();
-window.FOOD_GAME = { player:player, caterpillar:caterpillar, boxes:boxes, holes:holes, game:game, CHARS:CHARS };
+window.FOOD_GAME = {
+  player:player, caterpillar:caterpillar, boxes:boxes, holes:holes, game:game, CHARS:CHARS,
+  getFriends: function () { return friends; },
+  getCamYaw: function () { return camYaw; },
+  setCamYaw: function (y) { camYaw = y; }
+};
 document.getElementById('startBtn').onclick = restart;
 document.getElementById('againBtn').onclick = restart;
 requestAnimationFrame(loop);
