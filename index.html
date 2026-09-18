@@ -91,6 +91,11 @@
   <div id="hideTag" class="tag danger">노출됨</div>
   <div id="hideInfo" style="opacity:.7; font-size:12px; margin-top:6px;">숨을 곳을 찾으세요</div>
   <div id="dist" style="opacity:.6; font-size:12px;">애벌레 거리 --</div>
+  <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,.14); padding-top:7px; font-size:12px;">
+    <div>🐛 애벌레 힘 <b id="catHp">100%</b></div>
+    <div>🥎 미트 <b id="mittWho">아이 허벅지 위</b></div>
+    <div>👶 아이 위 <b id="lapCount">0</b> / 3</div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -113,7 +118,10 @@
       화살표 키는 항상 <b>화면에서 보이는 방향 그대로</b> 움직입니다. 시점은 마우스로 돌립니다.<br>
       1분마다 레벨이 올라 다음 캐릭터로 변신합니다. 몸집이 커질수록 숨을 곳이 줄어듭니다.<br>
       트램펄린(노란 발판)을 밟으면 서랍·테이블·책상·냉장고 위로 튕겨 올라갑니다.<br>
-      구멍 위에 올라서면 <b>몸이 쏙 들어갑니다.</b> 나올 때는 Space.
+      구멍 위에 올라서면 <b>누구든 몸이 쏙 들어갑니다.</b> 나올 때는 Space.<br>
+      주방 뒷벽의 <b>벽 구멍</b>은 거실로 통합니다. 소파에서 자는 아이의 허벅지 위에 <b>미트</b>가 있습니다.<br>
+      미트를 가지면 애벌레에 닿아도 죽지 않고 <b>애벌레가 10%씩 다칩니다. 10번 때리면 승리!</b><br>
+      단, 아이 위에 과일이 <b>3개 이상</b> 올라가면 아이가 깨어나 하나를 밟습니다.
     </p>
     <button id="startBtn">게임 시작</button>
   </div>
@@ -156,21 +164,21 @@ var CAT_SPEED_MAX = 2.8;
 // fit: 숫자가 작을수록 작은 몸집 -> 더 많은 구멍에 들어갈 수 있음
 var CHARS = [
   { key:'sugar',      name:'설탕',     r:0.10, fit:1, color:0xffffff, shape:'cube',
-    speed:3.3, jump:3.65, note:'아주 작은 사각형. 모든 구멍에 들어가고 잔디밭에도 숨는다.' },
+    speed:3.3, jump:3.65, note:'아주 작은 사각형. 구멍은 물론 잔디밭에도 숨는다.' },
   { key:'blueberry',  name:'블루베리', r:0.14, fit:2, color:0x4c5bc4, shape:'berry',
-    speed:3.45, jump:3.7, note:'작은 구멍에 들어가고 파란 물건 속에도 숨는다.' },
+    speed:3.45, jump:3.7, note:'구멍에 들어가고 파란 물건 속에도 숨는다.' },
   { key:'kiwi',       name:'키위',     r:0.19, fit:3, color:0x8d6b3c, shape:'fruit',
     speed:3.55, jump:3.75, note:'몸집에 맞는 구멍에 들어갈 수 있다.' },
   { key:'tomato',     name:'토마토',   r:0.23, fit:4, color:0xe03a26, shape:'fruit',
     speed:3.6, jump:3.8, note:'몸집에 맞는 구멍에 들어갈 수 있다.' },
   { key:'cabbage',    name:'양배추',   r:0.32, fit:6, color:0x93c96e, shape:'fruit',
-    speed:3.4, jump:3.7, note:'커서 들어갈 곳이 거의 없다.' },
+    speed:3.4, jump:3.7, note:'크지만 구멍에는 들어갈 수 있다.' },
   { key:'watermelon', name:'수박',     r:0.45, fit:9, color:0x2f7d32, shape:'melon',
-    speed:3.0, jump:3.55, note:'가장 크다. 숨을 곳이 없다.' },
+    speed:3.0, jump:3.55, note:'가장 크다. 느리지만 구멍에는 들어간다.' },
   { key:'melon',      name:'멜론',     r:0.38, fit:8, color:0xd9d182, shape:'melon',
-    speed:3.1, jump:3.6, note:'커서 숨을 곳이 없다.' },
+    speed:3.1, jump:3.6, note:'크지만 구멍에는 들어갈 수 있다.' },
   { key:'coconut',    name:'코코넛',   r:0.30, fit:7, color:0x6d4726, shape:'fruit',
-    speed:3.25, jump:3.65, note:'단단하지만 숨을 곳이 없다.' }
+    speed:3.25, jump:3.65, note:'단단하다. 구멍에도 들어간다.' }
 ];
 
 var boxes = [];      // 충돌체 { min, max, tramp, apex, landX, landZ, name }
@@ -308,15 +316,15 @@ function holeMarker(x, y, z, r) {
 solid(3.0, 4.7, 0, 2.2, -4.9, -3.3, 0xdfe4e8, { rough:0.35, metal:0.35, name:'냉장고' });
 solid(2.98, 3.02, 0.7, 1.5, -4.6, -3.6, 0x9aa3aa, { noCollide:true, metal:0.6 }); // 손잡이
 // 냉장고 밑 틈새 = 중간 크기 구멍
-holes.push({ x:3.15, z:-3.20, y:0, r:0.42, fit:4, name:'냉장고 밑 틈새' });
-holeMarker(3.15, 0, -3.20, 0.42);
+holes.push({ x:2.55, z:-3.05, y:0, r:0.55, fit:9, name:'냉장고 옆 틈새' });
+holeMarker(2.55, 0, -3.05, 0.55);
 
 // 냉장고 위 환기구 — 트램펄린으로 올라가면 들어갈 수 있다
-holes.push({ x:3.55, z:-4.30, y:2.2, r:0.36, fit:4, name:'냉장고 위 환기구' });
-holeMarker(3.55, 2.2, -4.30, 0.36);
+holes.push({ x:4.30, z:-3.70, y:2.2, r:0.55, fit:9, name:'냉장고 위 환기구' });
+holeMarker(4.30, 2.2, -3.70, 0.55);
 [-0.18, -0.06, 0.06, 0.18].forEach(function (o) {   // 환기구 살
   var bar = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.02, 0.035), mat(0x8d949b, 0.5, 0.4));
-  bar.position.set(3.55, 2.23, -4.30 + o);
+  bar.position.set(4.30, 2.23, -3.70 + o);
   scene.add(bar);
 });
 
@@ -336,12 +344,12 @@ boxes.push({ min:{x:-3.78,y:1.06,z:-4.28}, max:{x:-3.12,y:1.16,z:-3.62}, tramp:f
 solid(-1.6, 0.9, 0, 0.9, -4.9, -4.0, 0xb4885e, { name:'서랍장' });
 // 열린 서랍: 바닥판 + 옆면 (안쪽이 걸어다닐 수 있는 공간)
 solid(-1.5, 0.8, 0.40, 0.6, -4.05, -3.25, 0xc79a6d, { name:'열린 서랍 바닥' });
-solid(-1.55, -1.5, 0.6, 0.78, -4.05, -3.25, 0xa8794f, { name:'서랍 옆면' });
-solid( 0.80,  0.85, 0.6, 0.78, -4.05, -3.25, 0xa8794f, { name:'서랍 옆면' });
-solid(-1.55, 0.85, 0.6, 0.78, -3.30, -3.25, 0x8f6a45, { name:'서랍 앞판' });
+solid(-1.55, -1.5, 0.6, 0.78, -4.05, -3.25, 0xa8794f, { noCollide:true });
+solid( 0.80,  0.85, 0.6, 0.78, -4.05, -3.25, 0xa8794f, { noCollide:true });
+solid(-1.55, 0.85, 0.6, 0.78, -3.30, -3.25, 0x8f6a45, { noCollide:true });
 // 서랍 구석의 좁은 틈 = 작은 구멍
-holes.push({ x:-1.25, z:-3.6, y:0.6, r:0.3, fit:2, name:'서랍 속 틈새' });
-holeMarker(-1.25, 0.6, -3.6, 0.3);
+holes.push({ x:-1.30, z:-3.55, y:0.6, r:0.5, fit:9, name:'서랍 속 틈새' });
+holeMarker(-1.30, 0.6, -3.55, 0.5);
 
 /* ---- 식탁 + 의자 (방 가운데) ---- */
 var topY = 0.82;
@@ -367,13 +375,13 @@ ear.position.set(0.77, topY + 0.21, 0.9); ear.rotation.y = Math.PI / 2; scene.ad
 blueZones.push({ x:0.55, z:0.9, r:0.2, y:topY + 0.09, name:'파란 머그컵 속' });
 
 // 주전자 (식탁 위) — 뚜껑이 열려 있어 안으로 들어갈 수 있다
-var KETTLE = { x:-0.55, z:0.55, r:0.30, top:topY + 0.08 + 0.42 };
+var KETTLE = { x:-0.55, z:0.55, r:0.34, top:topY + 0.08 + 0.42 };
 var kettleMat = mat(0xc9ccd1, 0.3, 0.7);
 var kettle = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.26, 0.30, 0.42, 22, 1, true), kettleMat);
+  new THREE.CylinderGeometry(0.30, 0.34, 0.42, 22, 1, true), kettleMat);
 kettle.position.set(KETTLE.x, topY + 0.08 + 0.21, KETTLE.z);
 kettle.castShadow = true; scene.add(kettle);
-var kettleFloor = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.03, 22), kettleMat);
+var kettleFloor = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.03, 22), kettleMat);
 kettleFloor.position.set(KETTLE.x, topY + 0.10, KETTLE.z); scene.add(kettleFloor);
 var spout = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 0.3, 10), kettleMat);
 spout.position.set(KETTLE.x - 0.3, topY + 0.34, KETTLE.z); spout.rotation.z = 0.9;
@@ -390,7 +398,7 @@ boxes.push({
   max:{ x:KETTLE.x + KETTLE.r, y:KETTLE.top, z:KETTLE.z + KETTLE.r },
   tramp:false, name:'주전자'
 });
-holes.push({ x:KETTLE.x, z:KETTLE.z, y:KETTLE.top, r:0.26, fit:4, name:'주전자 속' });
+holes.push({ x:KETTLE.x, z:KETTLE.z, y:KETTLE.top, r:0.3, fit:9, name:'주전자 속' });
 
 // 파란 러그 (바닥) — 블루베리 은신처
 var rug = new THREE.Mesh(new THREE.CircleGeometry(0.95, 32), mat(0x3763c4, 0.95));
@@ -398,16 +406,17 @@ rug.rotation.x = -Math.PI / 2; rug.position.set(-3.2, 0.012, 1.6); rug.receiveSh
 blueZones.push({ x:-3.2, z:1.6, r:0.8, y:0, name:'파란 러그 위' });
 
 // 벽 밑 작은 구멍 (설탕/블루베리용)
-var holeHole = new THREE.Mesh(new THREE.CircleGeometry(0.22, 20), mat(0x14100c, 1));
-holeHole.position.set(2.0, 0.22, -4.98); scene.add(holeHole);
-holes.push({ x:2.0, z:-4.62, y:0, r:0.32, fit:2, name:'벽 밑 작은 구멍' });
-holeMarker(2.0, 0, -4.62, 0.32);
+var holeHole = new THREE.Mesh(new THREE.CircleGeometry(0.42, 20), mat(0x14100c, 1));
+holeHole.position.set(2.0, 0.4, -4.98); scene.add(holeHole);
+holes.push({ x:2.0, z:-4.45, y:0, r:0.55, fit:9, name:'벽 구멍',
+             passage:{ x:2.0, y:0, z:-6.85 } });          // 거실로 통한다
+holeMarker(2.0, 0, -4.45, 0.55);
 
 // 배수관 구멍 (큰 편 — 양배추까지)
-var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.06, 20), mat(0x3b4048, 0.6, 0.4));
+var pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.06, 20), mat(0x3b4048, 0.6, 0.4));
 pipe.position.set(-4.1, 0.02, 3.4); scene.add(pipe);
-holes.push({ x:-4.1, z:3.4, y:0, r:0.46, fit:6, name:'배수관 구멍' });
-holeMarker(-4.1, 0.02, 3.4, 0.42);
+holes.push({ x:-4.1, z:3.4, y:0, r:0.58, fit:9, name:'배수관 구멍' });
+holeMarker(-4.1, 0.02, 3.4, 0.55);
 
 /* ---- 마당: 책상, 잔디, 화분 ---- */
 solid(-2.3, 0.3, 0.78, 0.86, 12.0, 14.0, 0xb98a5c, { name:'마당 책상 상판' });
@@ -421,8 +430,8 @@ pot.position.set(4.6, 0.275, 9.0); pot.castShadow = true; scene.add(pot);
 boxes.push({ min:{x:4.08,y:0,z:8.48}, max:{x:5.12,y:0.5,z:9.52}, tramp:false, target:0, name:'화분' });
 var soil = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.04, 18), mat(0x3a2a1c, 1));
 soil.position.set(4.6, 0.55, 9.0); scene.add(soil);
-holes.push({ x:4.6, z:9.0, y:0.55, r:0.4, fit:4, name:'화분 흙 속' });
-holeMarker(4.6, 0.55, 9.0, 0.34);
+holes.push({ x:4.6, z:9.0, y:0.55, r:0.45, fit:9, name:'화분 흙 속' });
+holeMarker(4.6, 0.55, 9.0, 0.42);
 
 // 잔디 덤불 (설탕 은신처) — 여러 군데
 var grassSpots = [[-5.2, 8.2, 1.0], [6.2, 13.4, 1.1], [-6.4, 14.6, 1.0], [2.6, 16.2, 0.95], [7.0, 6.6, 0.9]];
@@ -445,6 +454,150 @@ grassSpots.forEach(function (s) {
   scene.add(mesh);
 });
 
+/* ------------------------------------------------------------------ *
+ *  거실 — 주방 벽 구멍으로 들어가면 나오는 방
+ * ------------------------------------------------------------------ */
+
+var LIVING = { minX:-6.0, maxX:6.0, minZ:-16.5, maxZ:-6.0 };
+
+var livingFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(12, 10.5),
+  new THREE.MeshStandardMaterial({ color:0xb9926a, roughness:0.85 })
+);
+livingFloor.rotation.x = -Math.PI / 2;
+livingFloor.position.set(0, 0, -11.25);
+livingFloor.receiveShadow = true;
+scene.add(livingFloor);
+
+var livingWall = mat(0xe3d9ca, 0.95);
+solid(-6.2,  6.2, 0, 3.2, -16.7, -16.5, 0, { material:livingWall, name:'벽' });
+solid(-6.2, -6.0, 0, 3.2, -16.7,  -6.0, 0, { material:livingWall, name:'벽' });
+solid( 6.0,  6.2, 0, 3.2, -16.7,  -6.0, 0, { material:livingWall, name:'벽' });
+solid(-6.2,  6.2, 0, 3.2,  -6.2,  -6.0, 0, { material:livingWall, name:'벽' });
+
+// 거실 쪽 구멍 입구 (주방으로 돌아가는 길)
+var backHole = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), mat(0x14100c, 1));
+backHole.position.set(2.0, 0.3, -6.01); backHole.rotation.y = Math.PI; scene.add(backHole);
+
+// 러그
+var livingRug = new THREE.Mesh(new THREE.CircleGeometry(2.6, 36), mat(0x9c5f52, 0.95));
+livingRug.rotation.x = -Math.PI / 2; livingRug.position.set(0, 0.012, -11.0);
+livingRug.receiveShadow = true; scene.add(livingRug);
+
+// TV 장식
+solid(-1.5, 1.5, 0, 0.5, -16.4, -15.7, 0x6b4c34, { name:'TV 장식장' });
+solid(-1.3, 1.3, 0.5, 1.5, -16.2, -16.1, 0x1b1f26, { rough:0.25, name:'TV' });
+
+/* ---- 소파 ---- */
+var SOFA_Y = 0.42;
+solid(-1.9, 1.9, 0, SOFA_Y, -13.5, -11.9, 0x5f7a9b, { name:'소파 방석' });
+solid(-1.9, 1.9, SOFA_Y, 1.25, -13.7, -13.4, 0x536c8b, { name:'소파 등받이' });
+solid(-2.15, -1.9, 0, 0.75, -13.7, -11.9, 0x536c8b, { name:'소파 팔걸이' });
+solid( 1.9,  2.15, 0, 0.75, -13.7, -11.9, 0x536c8b, { name:'소파 팔걸이' });
+
+/* ---- 자고 있는 아이 ---- */
+var CHILD = {
+  // 허벅지(무릎 위) — 과일이 올라설 수 있는 평평한 곳
+  lap: { minX:-0.42, maxX:0.42, minZ:-12.95, maxZ:-12.05, y:0.60 },
+  state: 'sleep',      // sleep | wake | stomp | rest
+  timer: 0,
+  victim: null,
+  group: new THREE.Group()
+};
+scene.add(CHILD.group);
+
+var skinMat = mat(0xf3c9a4, 0.8);
+var pajamaMat = mat(0x8fbf7a, 0.85);
+
+// 몸통
+solid(-0.42, 0.42, SOFA_Y, 1.18, -13.4, -12.95, 0, { material:pajamaMat, name:'아이 몸통' });
+// 허벅지 (윗면 0.60 — 여기에 올라갈 수 있다)
+solid(-0.42, 0.42, SOFA_Y, 0.60, -12.95, -12.05, 0, { material:pajamaMat, name:'아이 허벅지' });
+// 종아리 + 발
+solid(-0.42, 0.42, 0, SOFA_Y, -12.30, -12.05, 0, { material:pajamaMat, name:'아이 종아리' });
+solid(-0.42, 0.42, 0, 0.14, -12.05, -11.60, 0, { material:skinMat, name:'아이 발' });
+// 팔
+solid(-0.72, -0.42, SOFA_Y + 0.25, SOFA_Y + 0.5, -13.35, -12.5, 0, { material:pajamaMat, name:'아이 팔' });
+solid( 0.42,  0.72, SOFA_Y + 0.25, SOFA_Y + 0.5, -13.35, -12.5, 0, { material:pajamaMat, name:'아이 팔' });
+
+// 머리
+var head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 22, 18), skinMat);
+head.position.set(0, 1.5, -13.18); head.castShadow = true; CHILD.group.add(head);
+var hair = new THREE.Mesh(new THREE.SphereGeometry(0.375, 22, 18, 0, Math.PI * 2, 0, 1.25),
+  mat(0x3b2a1e, 0.9));
+hair.position.copy(head.position); hair.rotation.x = -0.25; CHILD.group.add(hair);
+boxes.push({ min:{x:-0.36,y:1.18,z:-13.54}, max:{x:0.36,y:1.86,z:-12.82}, tramp:false, name:'아이 머리' });
+
+// 감은 눈 / 뜬 눈
+CHILD.eyes = [];
+[-1, 1].forEach(function (sd) {
+  var closed = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.018, 0.02), mat(0x2a1c14, 0.6));
+  closed.position.set(sd * 0.14, 1.52, -12.84);
+  CHILD.group.add(closed);
+  var open = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), mat(0x1a1410, 0.4));
+  open.position.set(sd * 0.14, 1.53, -12.845);
+  open.visible = false;
+  CHILD.group.add(open);
+  CHILD.eyes.push({ closed:closed, open:open });
+});
+// 입
+var mouth = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mat(0x8a4a44, 0.6));
+mouth.position.set(0, 1.39, -12.85); mouth.scale.set(1, 0.7, 0.5); CHILD.group.add(mouth);
+
+// Zzz 표시
+CHILD.zzz = new THREE.Group();
+[0, 1, 2].forEach(function (i) {
+  var z = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.02), mat(0xffffff, 0.4));
+  var z2 = z.clone(), z3 = z.clone();
+  z.position.set(0, 0.07, 0); z2.position.set(0, -0.07, 0);
+  z3.rotation.z = 0.9;
+  var g = new THREE.Group(); g.add(z); g.add(z2); g.add(z3);
+  g.position.set(0.45 + i * 0.22, 1.95 + i * 0.26, -12.9);
+  g.scale.setScalar(0.8 + i * 0.4);
+  CHILD.zzz.add(g);
+});
+scene.add(CHILD.zzz);
+
+// 밟는 발 (평소엔 숨어 있다)
+CHILD.foot = new THREE.Group();
+var sole = new THREE.Mesh(new THREE.SphereGeometry(0.3, 16, 12), skinMat);
+sole.scale.set(0.85, 0.42, 1.25); sole.castShadow = true;
+CHILD.foot.add(sole);
+[-0.16, -0.055, 0.055, 0.16].forEach(function (o, i) {
+  var toe = new THREE.Mesh(new THREE.SphereGeometry(0.055 - i * 0.004, 10, 8), skinMat);
+  toe.position.set(o, -0.02, -0.34);
+  CHILD.foot.add(toe);
+});
+var ankle = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.5, 12), pajamaMat);
+ankle.position.set(0, 0.3, 0.14);
+CHILD.foot.add(ankle);
+CHILD.foot.visible = false;
+scene.add(CHILD.foot);
+
+/* ---- 미트 (야구 글러브) — 아이의 허벅지 위 ---- */
+var MITT_HOME = new THREE.Vector3(0, CHILD.lap.y + 0.10, -12.5);
+var mittGroup = new THREE.Group();
+var mittMat = mat(0x9a5a2a, 0.75);
+var mittPalm = new THREE.Mesh(new THREE.SphereGeometry(0.19, 16, 12, 0, Math.PI * 2, 0, 1.5), mittMat);
+mittPalm.scale.set(1, 0.75, 1.05); mittPalm.castShadow = true; mittGroup.add(mittPalm);
+[-0.11, -0.037, 0.037, 0.11].forEach(function (o) {
+  var fng = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.16, 8), mittMat);
+  fng.position.set(o, 0.08, -0.1); fng.rotation.x = -0.35; mittGroup.add(fng);
+});
+var thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.15, 8), mittMat);
+thumb.position.set(0.17, 0.06, 0.03); thumb.rotation.z = -0.5; mittGroup.add(thumb);
+var mittBall = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 10), mat(0xf2efe6, 0.6));
+mittBall.position.set(0, 0.07, 0); mittGroup.add(mittBall);
+mittGroup.position.copy(MITT_HOME);
+scene.add(mittGroup);
+
+var mitt = { owner:null, group:mittGroup, pos:MITT_HOME.clone(), cool:0 };
+
+// 거실 -> 주방으로 돌아가는 구멍
+holes.push({ x:2.0, z:-6.85, y:0, r:0.55, fit:9, name:'주방으로 가는 구멍',
+             passage:{ x:2.0, y:0, z:-3.95 } });
+holeMarker(2.0, 0, -6.85, 0.55);
+
 /* ---- 트램펄린 4개 ---- */
 // 트램펄린: 최고점(apexY)까지 솟구치면서, 그 시점에 착지 지점(landX, landZ) 위에 오도록
 // 수평 속도까지 함께 준다 -> 밟으면 "자연스럽게" 가구 위로 올라간다.
@@ -464,7 +617,7 @@ function trampoline(x, z, apexY, landX, landZ, label) {
 trampoline(-0.35, -2.85, 1.15, -0.35, -3.65, '서랍');      // 서랍 앞 -> 열린 서랍 안
 trampoline( 1.95,  0.45, 1.30,  0.60,  0.50, '식탁');      // 식탁 옆 -> 식탁 위
 trampoline(-1.00, 11.30, 1.25, -1.00, 13.00, '마당 책상');  // 마당 책상 앞 -> 책상 위
-trampoline( 3.85, -2.75, 2.60,  3.85, -4.10, '냉장고');    // 냉장고 앞 -> 냉장고 위
+trampoline( 3.85, -2.75, 2.60,  3.40, -4.55, '냉장고');    // 냉장고 앞 -> 냉장고 위
 
 // 트램펄린 발사: 목표 최고점까지 솟으면서 착지 지점 위로 날아가는 속도를 계산
 function launch(pos, vel, b) {
@@ -596,7 +749,10 @@ function moveAndCollide(p, r, h, vel, dt, ghost) {
 
 // 실내/마당 경계 (벽 밖으로 못 나가게 안전망)
 function clampWorld(p) {
-  if (p.z < 5.0) {                      // 주방
+  if (p.z < -5.5) {                     // 거실 (벽 구멍 너머)
+    p.x = Math.max(-5.85, Math.min(5.85, p.x));
+    p.z = Math.max(-16.35, Math.min(-6.15, p.z));
+  } else if (p.z < 5.0) {               // 주방
     p.x = Math.max(-4.9, Math.min(4.9, p.x));
     p.z = Math.max(-4.9, Math.min(p.z, 5.4));
   } else {                              // 마당
@@ -665,7 +821,13 @@ var caterpillar = {
   group: new THREE.Group(),
   target: null,
   wander: new THREE.Vector3(0, 0, 0),
-  wanderT: 0
+  wanderT: 0,
+  hp: 100,
+  hitCool: 0,
+  retreat: 0,
+  flash: 0,
+  passCool: 0,
+  wantLiving: false
 };
 scene.add(caterpillar.group);
 
@@ -702,7 +864,8 @@ scene.add(caterpillar.group);
 var WAYPOINTS = [
   [-3.5, -1.5], [3.5, -1.0], [0, -2.0], [-2.0, 3.0], [3.0, 3.2], [-4.0, 0.5],
   [0, 6.5], [-4.5, 9.0], [4.5, 10.0], [-1.0, 13.5], [5.5, 15.0], [-6.0, 15.5],
-  [1.5, 8.0], [7.0, 7.5], [-2.5, -4.0], [2.0, 1.5]
+  [1.5, 8.0], [7.0, 7.5], [-2.5, -4.0], [2.0, 1.5],
+  [-4.0, -8.0], [4.2, -8.5], [0, -9.5], [-3.0, -14.0], [3.5, -14.5], [1.0, -7.2]
 ];
 
 var friends = [];
@@ -728,6 +891,8 @@ function spawnFriends() {
       hideSpot: null,
       inHole: null,
       hideCool: 0,
+      passCool: 0,
+      greed: Math.random(),
       yaw: 0,
       stuckT: Math.random() * 0.6,
       lastX: w[0],
@@ -741,9 +906,11 @@ function spawnFriends() {
 }
 
 // 주방(z<5)과 마당(z>=5)은 문으로만 오간다
-function region(z) { return z < 5 ? 0 : 1; }
+// 0 = 주방, 1 = 마당, 2 = 거실
+function region(z) { return z < -5.5 ? 2 : (z < 5 ? 0 : 1); }
 
 function outOfBounds(x, z) {
+  if (z < -5.5) return x < -5.8 || x > 5.8 || z < -16.3 || z > -6.2;
   if (z < 5) return x < -4.8 || x > 4.8 || z < -4.8;
   return x < -8.6 || x > 8.6 || z > 17.5;
 }
@@ -811,7 +978,7 @@ function nearestHole(f) {
   var best = null, bestD = 4.5;
   for (var i = 0; i < holes.length; i++) {
     var hz = holes[i];
-    if (f.def.fit > hz.fit) continue;
+    if (hz.passage) continue;                       // 통로는 은신처가 아니다
     var d = Math.hypot(hz.x - f.pos.x, hz.z - f.pos.z);
     if (d < bestD && region(hz.z) === region(f.pos.z)) { bestD = d; best = hz; }
   }
@@ -886,6 +1053,16 @@ function restart() {
   setCharacter(0);
   caterpillar.pos.set(-3.5, 0, -4.0);
   caterpillar.speed = CAT_SPEED;
+  caterpillar.hp = 100;
+  caterpillar.hitCool = 0; caterpillar.retreat = 0; caterpillar.flash = 0;
+  caterpillar.passCool = 0; caterpillar.wantLiving = false;
+  caterpillar.segs.forEach(function (sg) { sg.visible = true; });
+  hpBar.visible = true;
+
+  mitt.owner = null; mitt.cool = 0; mitt.pos.copy(MITT_HOME);
+  CHILD.state = 'sleep'; CHILD.timer = 0; CHILD.victim = null;
+  CHILD.foot.visible = false; setChildAwake(false);
+  while (shards.length) { scene.remove(shards.pop().mesh); }
   for (var i = 0; i < caterpillar.trail.length; i++) caterpillar.trail[i].copy(caterpillar.pos);
   spawnFriends();
   camYaw = 0; camPitch = 0.28;
@@ -896,6 +1073,7 @@ function restart() {
 }
 
 function gameOver(title, sub) {
+  if (!game.running) return;
   game.running = false; game.over = true;
   document.getElementById('overTitle').textContent = title;
   document.getElementById('overSub').textContent = sub;
@@ -942,8 +1120,10 @@ function levelUp() {
 function holeUnder(pos, def, feetY, ignore) {
   for (var i = 0; i < holes.length; i++) {
     var z = holes[i];
-    if (def.fit > z.fit || z === ignore) continue;
-    if (Math.hypot(pos.x - z.x, pos.z - z.z) < z.r && Math.abs(feetY - z.y) < 0.3) return z;
+    if (z === ignore) continue;                   // 구멍은 누구나 들어갈 수 있다
+    // 입구에 몸이 닿기만 해도 들어간다 — 큰 과일이 가구에 밀려도 못 들어가는 일이 없게
+    if (Math.hypot(pos.x - z.x, pos.z - z.z) < z.r + def.r * 0.7 &&
+        Math.abs(feetY - z.y) < 0.3 + def.r) return z;
   }
   return null;
 }
@@ -971,11 +1151,252 @@ function checkCamouflage() {
 
 function hideOptionsText() {
   var def = charDef();
-  var n = holes.filter(function (h) { return def.fit <= h.fit; }).length;
-  if (def.key === 'sugar') return '들어갈 구멍 ' + n + '곳 + 잔디밭';
-  if (def.key === 'blueberry') return '들어갈 구멍 ' + n + '곳 + 파란 물건';
-  if (n === 0) return '숨을 곳 없음 — 계속 달리세요!';
-  return '들어갈 수 있는 구멍 ' + n + '곳';
+  var n = holes.length;
+  if (def.key === 'sugar') return '구멍 ' + n + '곳 + 잔디밭';
+  if (def.key === 'blueberry') return '구멍 ' + n + '곳 + 파란 물건';
+  return '구멍 ' + n + '곳 모두 들어갈 수 있음';
+}
+
+/* ------------------------------------------------------------------ *
+ *  미트 — 가진 과일은 애벌레에 닿아도 죽지 않고, 오히려 애벌레를 때린다
+ * ------------------------------------------------------------------ */
+
+function mittHolderPos() {
+  if (mitt.owner === 'player') return player.pos;
+  if (mitt.owner) return mitt.owner.pos;
+  return null;
+}
+
+function mittHolderR() {
+  if (mitt.owner === 'player') return charDef().r;
+  if (mitt.owner) return mitt.owner.def.r;
+  return 0;
+}
+
+function giveMitt(who) {
+  if (mitt.owner === who) return;
+  mitt.owner = who;
+  mitt.cool = 0.5;
+  if (who === 'player') toast('🥎 미트를 잡았다!', '이제 애벌레에 닿으면 애벌레가 다칩니다');
+  else toast('🥎 ' + who.def.name + '이(가) 미트를 가져갔다!', '몸으로 부딪치면 뺏을 수 있습니다');
+}
+
+function dropMitt() {
+  var pos = mittHolderPos();
+  if (pos) mitt.pos.set(pos.x, Math.max(0.1, pos.y + 0.1), pos.z);
+  mitt.owner = null;
+  mitt.cool = 0.8;
+}
+
+function updateMitt(dt) {
+  mitt.cool -= dt;
+
+  // 주인이 있으면 따라다닌다
+  var hp = mittHolderPos();
+  if (hp) {
+    var r = mittHolderR();
+    mitt.pos.set(hp.x, hp.y + r * 2 + 0.02, hp.z);
+    mitt.group.position.copy(mitt.pos);
+    mitt.group.rotation.y += dt * 1.2;
+    mitt.group.scale.setScalar(0.85);
+  } else {
+    mitt.group.position.copy(mitt.pos);
+    mitt.group.position.y += Math.sin(game.time * 2.5) * 0.02;
+    mitt.group.rotation.y += dt * 0.6;
+    mitt.group.scale.setScalar(1);
+  }
+
+  if (mitt.cool > 0) return;
+
+  // 미트에 닿으면 자동으로 잡힌다
+  var def = charDef();
+  if (mitt.owner !== 'player') {
+    var d = Math.hypot(player.pos.x - mitt.pos.x, player.pos.z - mitt.pos.z);
+    var dy = Math.abs((player.pos.y + def.r) - mitt.pos.y);
+    if (d < def.r + 0.28 && dy < def.r + 0.35 && !player.inHole) giveMitt('player');
+  }
+  if (!mitt.owner) {
+    friends.forEach(function (f) {
+      if (!f.alive || f.inHole || mitt.owner) return;
+      if (Math.hypot(f.pos.x - mitt.pos.x, f.pos.z - mitt.pos.z) < f.def.r + 0.28 &&
+          Math.abs((f.pos.y + f.def.r) - mitt.pos.y) < f.def.r + 0.35) giveMitt(f);
+    });
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  애벌레 체력 바
+ * ------------------------------------------------------------------ */
+
+var hpBar = new THREE.Group();
+(function buildHpBar() {
+  var back = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.1),
+    new THREE.MeshBasicMaterial({ color:0x20242c }));
+  hpBar.add(back);
+  hpBar.fill = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.07),
+    new THREE.MeshBasicMaterial({ color:0x5ddc6a }));
+  hpBar.fill.position.z = 0.002;
+  hpBar.add(hpBar.fill);
+  scene.add(hpBar);
+})();
+
+function updateHpBar() {
+  var c = caterpillar;
+  hpBar.position.set(c.pos.x, c.pos.y + SEG_R * 2 + 0.34, c.pos.z);
+  hpBar.quaternion.copy(camera.quaternion);
+  var f = Math.max(0, c.hp) / 100;
+  hpBar.fill.scale.x = Math.max(0.001, f);
+  hpBar.fill.position.x = -0.29 * (1 - f);
+  hpBar.fill.material.color.setHex(f > 0.6 ? 0x5ddc6a : (f > 0.3 ? 0xf0c04a : 0xe0503c));
+  hpBar.visible = c.hp > 0;
+}
+
+function hitCaterpillar(fromPos, byName) {
+  var c = caterpillar;
+  if (c.hitCool > 0 || c.hp <= 0) return;
+  c.hp -= 10;
+  c.hitCool = 0.7;
+  c.retreat = 2.6;                       // 맞으면 잠시 도망친다
+  var dx = c.pos.x - fromPos.x, dz = c.pos.z - fromPos.z;
+  var l = Math.hypot(dx, dz) || 1;
+  c.pos.x += (dx / l) * 0.7; c.pos.z += (dz / l) * 0.7;
+  c.flash = 0.35;
+  document.getElementById('catHp').textContent = Math.max(0, c.hp) + '%';
+  if (c.hp <= 0) {
+    killCaterpillar();
+  } else {
+    toast('🥎 퍽! 애벌레 ' + c.hp + '%', byName + '의 미트 공격! ' + Math.ceil(c.hp / 10) + '번 더');
+  }
+}
+
+function killCaterpillar() {
+  caterpillar.hp = 0;
+  shatter(caterpillar.pos, 0x7cc242, 22);
+  caterpillar.segs.forEach(function (sg) { sg.visible = false; });
+  hpBar.visible = false;
+  game.running = false;
+  document.getElementById('overTitle').textContent = '🏆 애벌레를 물리쳤다!';
+  document.getElementById('overSub').textContent = '미트로 10번 때려 애벌레를 쓰러뜨렸습니다.';
+  document.getElementById('ovLv').textContent = game.level;
+  document.getElementById('ovTime').textContent = fmt(game.time);
+  document.getElementById('ovChar').textContent = charDef().name;
+  document.getElementById('over').classList.remove('hide');
+}
+
+/* ------------------------------------------------------------------ *
+ *  산산조각 파편
+ * ------------------------------------------------------------------ */
+
+var shards = [];
+
+function shatter(pos, color, n) {
+  for (var i = 0; i < (n || 14); i++) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), mat(color, 0.6));
+    m.position.set(pos.x, pos.y + 0.1, pos.z);
+    scene.add(m);
+    shards.push({
+      mesh: m, life: 1.1,
+      vel: new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3 + 1, (Math.random() - 0.5) * 3)
+    });
+  }
+}
+
+function updateShards(dt) {
+  for (var i = shards.length - 1; i >= 0; i--) {
+    var s2 = shards[i];
+    s2.life -= dt;
+    s2.vel.y -= G * dt;
+    s2.mesh.position.addScaledVector(s2.vel, dt);
+    s2.mesh.rotation.x += dt * 6; s2.mesh.rotation.y += dt * 4;
+    s2.mesh.scale.setScalar(Math.max(0.01, s2.life));
+    if (s2.life <= 0) { scene.remove(s2.mesh); shards.splice(i, 1); }
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  자고 있는 아이 — 허벅지 위에 과일이 3개 이상 올라가면 깨어난다
+ * ------------------------------------------------------------------ */
+
+function onLap(pos, r) {
+  var L = CHILD.lap;
+  return pos.x > L.minX - r && pos.x < L.maxX + r &&
+         pos.z > L.minZ - r && pos.z < L.maxZ + r &&
+         Math.abs(pos.y - L.y) < 0.3;
+}
+
+function lapRiders() {
+  var list = [];
+  if (!player.inHole && onLap(player.pos, charDef().r)) {
+    list.push({ isPlayer:true, pos:player.pos, name:charDef().name, color:charDef().color });
+  }
+  friends.forEach(function (f) {
+    if (f.alive && !f.inHole && onLap(f.pos, f.def.r)) {
+      list.push({ isPlayer:false, friend:f, pos:f.pos, name:f.def.name, color:f.def.color });
+    }
+  });
+  return list;
+}
+
+function setChildAwake(on) {
+  CHILD.eyes.forEach(function (e) { e.closed.visible = !on; e.open.visible = on; });
+  CHILD.zzz.visible = !on;
+}
+
+function updateChild(dt) {
+  CHILD.timer -= dt;
+  CHILD.zzz.children.forEach(function (g, i) {
+    g.position.y = 1.95 + i * 0.26 + Math.sin(game.time * 1.2 + i) * 0.06;
+  });
+
+  if (CHILD.state === 'sleep') {
+    var riders = lapRiders();
+    document.getElementById('lapCount').textContent = riders.length;
+    if (riders.length >= 3) {
+      CHILD.state = 'wake';
+      CHILD.timer = 0.75;
+      CHILD.victim = riders[(Math.random() * riders.length) | 0];
+      setChildAwake(true);
+      CHILD.foot.visible = true;
+      CHILD.foot.position.set(CHILD.victim.pos.x, 2.1, CHILD.victim.pos.z);
+      toast('😳 아이가 깼다!', '허벅지 위에 과일이 ' + riders.length + '개 — 하나를 밟습니다!');
+    }
+  } else if (CHILD.state === 'wake') {
+    // 발이 내려온다
+    var v = CHILD.victim;
+    var tx = v.pos.x, tz = v.pos.z;
+    CHILD.foot.position.x += (tx - CHILD.foot.position.x) * Math.min(1, 8 * dt);
+    CHILD.foot.position.z += (tz - CHILD.foot.position.z) * Math.min(1, 8 * dt);
+    CHILD.foot.position.y += (CHILD.lap.y + 0.12 - CHILD.foot.position.y) * Math.min(1, 9 * dt);
+    if (CHILD.timer <= 0) {
+      stompVictim();
+      CHILD.state = 'rest';
+      CHILD.timer = 1.4;
+    }
+  } else if (CHILD.state === 'rest') {
+    CHILD.foot.position.y += (2.1 - CHILD.foot.position.y) * Math.min(1, 4 * dt);
+    if (CHILD.timer <= 0) {
+      CHILD.state = 'sleep';
+      CHILD.foot.visible = false;
+      setChildAwake(false);
+    }
+  }
+}
+
+function stompVictim() {
+  var v = CHILD.victim;
+  if (!v) return;
+  shatter(v.pos, v.color, 16);
+  if (v.isPlayer) {
+    if (mitt.owner === 'player') dropMitt();
+    gameOver('👣 밟혔다!', '아이가 깨어나 ' + v.name + '을(를) 밟았습니다. 산산조각.');
+  } else if (v.friend.alive) {
+    if (mitt.owner === v.friend) dropMitt();
+    v.friend.alive = false;
+    scene.remove(v.friend.mesh);
+    updateFriendCount();
+    toast('💥 ' + v.name + ' 산산조각!', '아이 위에는 두 개까지만 올라가세요');
+  }
+  CHILD.victim = null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -992,13 +1413,13 @@ function updatePlayer(dt) {
   // 방금 나온 구멍에서 충분히 벗어나면 다시 들어갈 수 있다
   if (player.holeIgnore &&
       Math.hypot(player.pos.x - player.holeIgnore.x, player.pos.z - player.holeIgnore.z) >
-        player.holeIgnore.r + 0.2) player.holeIgnore = null;
+        player.holeIgnore.r + charDef().r * 0.7 + 0.25) player.holeIgnore = null;
 
   /* --- 구멍 안에 들어가 있는 동안 --- */
   if (player.inHole) {
     var hole = player.inHole;
     // 몸집이 커져서 더 이상 안 맞으면 밀려 나온다
-    if (def.fit > hole.fit) {
+    if (false) {
       leaveHole(true);
     } else {
       player.vel.set(0, 0, 0);
@@ -1090,8 +1511,29 @@ function updatePlayer(dt) {
   setGhosted(player.mesh, player.hidden);
 }
 
+function holeNear(x, z) {
+  for (var i = 0; i < holes.length; i++) {
+    if (Math.hypot(holes[i].x - x, holes[i].z - z) < holes[i].r + 0.3) return holes[i];
+  }
+  return null;
+}
+
 function enterHole(hole) {
   var def = charDef();
+
+  // 통로 구멍 — 들어가면 다른 방으로 나온다
+  if (hole.passage) {
+    player.pos.set(hole.passage.x, hole.passage.y, hole.passage.z);
+    player.vel.set(0, 0, 0);
+    player.inHole = null;
+    player.holeCool = 0.4;
+    player.holeIgnore = holeNear(hole.passage.x, hole.passage.z);
+    camYaw = hole.passage.z < -5.5 ? Math.PI : 0;
+    toast(hole.passage.z < -5.5 ? '🛋️ 거실이다!' : '🍳 주방으로 돌아왔다',
+          hole.passage.z < -5.5 ? '소파 위에 아이가 자고 있다. 허벅지 위에 미트가 있다!' : '');
+    return;
+  }
+
   player.inHole = hole;
   player.holeCool = 0.45;
   player.vel.set(0, 0, 0);
@@ -1132,8 +1574,16 @@ function updateCaterpillar(dt) {
   }
 
   var dir = tmpV;
+  c.wantLiving = !!(target && region(target.z) === 2);
   if (target) {
-    dir.set(target.x - c.pos.x, 0, target.z - c.pos.z);
+    // 다른 방에 있는 목표는 벽 구멍을 거쳐 쫓아간다
+    if (region(target.z) !== region(c.pos.z) && region(c.pos.z) === 0) {
+      dir.set(2.0 - c.pos.x, 0, (region(target.z) === 2 ? -4.45 : 5.2) - c.pos.z);
+    } else if (region(target.z) !== region(c.pos.z) && region(c.pos.z) === 2) {
+      dir.set(2.0 - c.pos.x, 0, -6.85 - c.pos.z);
+    } else {
+      dir.set(target.x - c.pos.x, 0, target.z - c.pos.z);
+    }
   } else {
     // 못 찾으면 배회
     c.wanderT -= dt;
@@ -1147,9 +1597,17 @@ function updateCaterpillar(dt) {
   if (dir.lengthSq() < 0.0001) dir.set(0, 0, 1);
   dir.normalize();
 
+  // 미트에 맞으면 잠시 물러난다
+  c.hitCool -= dt;
+  c.flash -= dt;
+  if (c.retreat > 0) {
+    c.retreat -= dt;
+    dir.multiplyScalar(-1);
+  }
+
   // 애벌레는 어디든 갈 수 있다 — 가구도 타고 넘는다
   c.dir.lerp(dir, Math.min(1, 4 * dt)).normalize();
-  var sp = c.speed * (target === player.pos ? 1 : 0.9);
+  var sp = c.speed * (target === player.pos ? 1 : 0.9) * (c.retreat > 0 ? 1.15 : 1);
   c.pos.x += c.dir.x * sp * dt;
   c.pos.z += c.dir.z * sp * dt;
 
@@ -1157,8 +1615,25 @@ function updateCaterpillar(dt) {
   if (Math.abs(c.pos.z - 5.1) < 0.35 && Math.abs(c.pos.x) > 0.95) {
     c.pos.z = c.pos.z < 5.1 ? 4.75 : 5.45;
   }
-  c.pos.x = Math.max(-8.6, Math.min(8.6, c.pos.x));
-  c.pos.z = Math.max(-4.8, Math.min(17.6, c.pos.z));
+
+  // 벽 구멍으로 거실을 드나든다
+  if (region(c.pos.z) === 2) {
+    c.pos.x = Math.max(-5.8, Math.min(5.8, c.pos.x));
+    c.pos.z = Math.max(-16.3, Math.min(-6.2, c.pos.z));
+    if (Math.hypot(c.pos.x - 2.0, c.pos.z - (-6.85)) < 0.5 && c.passCool <= 0) {
+      c.pos.set(2.0, 0, -3.95); c.passCool = 1.2;
+      for (var q = 0; q < c.trail.length; q++) c.trail[q].copy(c.pos);
+    }
+  } else {
+    c.pos.x = Math.max(-8.6, Math.min(8.6, c.pos.x));
+    c.pos.z = Math.max(-4.8, Math.min(17.6, c.pos.z));
+    if (Math.hypot(c.pos.x - 2.0, c.pos.z - (-4.45)) < 0.5 && c.passCool <= 0 &&
+        c.wantLiving) {
+      c.pos.set(2.0, 0, -6.85); c.passCool = 1.2;
+      for (var q2 = 0; q2 < c.trail.length; q2++) c.trail[q2].copy(c.pos);
+    }
+  }
+  c.passCool -= dt;
 
   var gh = groundHeightAt(c.pos.x, c.pos.z);
   c.pos.y += (gh - c.pos.y) * Math.min(1, 6 * dt);
@@ -1176,21 +1651,36 @@ function updateCaterpillar(dt) {
   }
   c.segs[0].rotation.y = Math.atan2(c.dir.x, c.dir.z);
 
+  // 몸통 색: 맞으면 붉게 번쩍
+  var hurt = c.flash > 0;
+  c.segs.forEach(function (sg) {
+    sg.material.emissive.setHex(hurt ? 0x882020 : 0x000000);
+  });
+
   // 접촉 판정
   var def = charDef();
   var pd = Math.hypot(c.pos.x - player.pos.x, c.pos.z - player.pos.z);
   var py = player.pos.y + def.r;
-  if (pd < SEG_R + def.r + 0.06 && Math.abs(py - (c.pos.y + SEG_R)) < def.r + SEG_R + 0.3) {
-    gameOver('🐛 잡혔다!', '애벌레에게 닿아 ' + def.name + '이(가) 잡혔습니다.');
+  if (!player.inHole && pd < SEG_R + def.r + 0.06 &&
+      Math.abs(py - (c.pos.y + SEG_R)) < def.r + SEG_R + 0.3) {
+    if (mitt.owner === 'player') {
+      hitCaterpillar(player.pos, def.name);
+    } else {
+      gameOver('🐛 잡혔다!', '애벌레에게 닿아 ' + def.name + '이(가) 잡혔습니다.');
+    }
   }
 
   friends.forEach(function (f) {
-    if (!f.alive || f.hidden) return;
+    if (!f.alive || f.hidden || f.inHole) return;
     if (c.pos.distanceTo(f.pos) < SEG_R + f.def.r + 0.05) {
-      f.alive = false;
-      scene.remove(f.mesh);
-      updateFriendCount();
-      toast('😢 ' + f.def.name + ' 아웃!', '남은 친구 ' + friends.filter(function (x) { return x.alive; }).length + '명');
+      if (mitt.owner === f) {
+        hitCaterpillar(f.pos, f.def.name);
+      } else {
+        f.alive = false;
+        scene.remove(f.mesh);
+        updateFriendCount();
+        toast('😢 ' + f.def.name + ' 아웃!', '남은 친구 ' + friends.filter(function (x) { return x.alive; }).length + '명');
+      }
     }
   });
 }
@@ -1237,19 +1727,25 @@ function updateFriends(dt) {
     if (f.hideSpot) {
       aimX = f.hideSpot.x; aimZ = f.hideSpot.z;
       sp = f.def.speed * 1.15;
-    } else if (f.panic > 0) {
+    } else if (f.panic > 0 && mitt.owner !== f) {
       var fd = fleeDir(f);
       aimX = f.pos.x + fd.x * 4; aimZ = f.pos.z + fd.z * 4;
       sp = f.def.speed * 1.15;
     } else {
-      if (Math.hypot(f.goal.x - f.pos.x, f.goal.z - f.pos.z) < 0.7) pickGoal(f);
-      // 다른 구역의 목적지는 문을 거쳐서 간다
-      if (region(f.pos.z) !== region(f.goal.z)) {
-        aimX = 0; aimZ = region(f.pos.z) === 0 ? 5.5 : 4.5;
+      // 다른 과일도 미트를 탐낸다 — 주인이 없으면 가지러 간다
+      if (!mitt.owner && f.greed > 0.6) f.goal.set(mitt.pos.x, 0, mitt.pos.z);
+      else if (Math.hypot(f.goal.x - f.pos.x, f.goal.z - f.pos.z) < 0.7) pickGoal(f);
+
+      // 다른 구역의 목적지는 문이나 벽 구멍을 거쳐서 간다
+      var rp = region(f.pos.z), rg = region(f.goal.z);
+      if (rp !== rg) {
+        if (rp === 2)            { aimX = 2.0; aimZ = -6.85; }   // 거실 -> 주방
+        else if (rg === 2)       { aimX = 2.0; aimZ = -4.45; }   // 주방 -> 거실
+        else                     { aimX = 0;   aimZ = rp === 0 ? 5.5 : 4.5; }
       } else {
         aimX = f.goal.x; aimZ = f.goal.z;
       }
-      sp = f.def.speed * 0.62;
+      sp = f.def.speed * (!mitt.owner && f.greed > 0.6 ? 0.95 : 0.62);
     }
 
     var dx = aimX - f.pos.x, dz = aimZ - f.pos.z;
@@ -1306,6 +1802,21 @@ function updateFriends(dt) {
       f.grounded = false;
     }
     clampWorld(f.pos);
+
+    /* --- 벽 구멍으로 방을 옮긴다 --- */
+    f.passCool -= dt;
+    if (f.passCool <= 0 && f.grounded) {
+      for (var hi = 0; hi < holes.length; hi++) {
+        var H = holes[hi];
+        if (!H.passage) continue;
+        if (Math.hypot(f.pos.x - H.x, f.pos.z - H.z) < H.r && Math.abs(f.pos.y - H.y) < 0.3) {
+          f.pos.set(H.passage.x, H.passage.y, H.passage.z);
+          f.vel.set(0, 0, 0);
+          f.passCool = 1.4;
+          break;
+        }
+      }
+    }
 
     /* --- 끼었으면 포기하고 다른 곳으로 --- */
     f.stuckT += dt;
@@ -1417,6 +1928,11 @@ function updateHUD() {
     info.textContent = hideOptionsText();
   }
   document.getElementById('dist').textContent = '애벌레 거리 ' + d.toFixed(1) + 'm';
+  document.getElementById('catHp').textContent = Math.max(0, caterpillar.hp) + '%';
+  document.getElementById('mittWho').textContent =
+    mitt.owner === 'player' ? '내가 가짐!' :
+    (mitt.owner ? mitt.owner.def.name + '이(가) 가짐' :
+      (region(mitt.pos.z) === 2 ? '거실 (아이 허벅지 위)' : '바닥에 떨어짐'));
 }
 
 /* ------------------------------------------------------------------ *
@@ -1438,8 +1954,13 @@ function loop(now) {
     updatePlayer(dt);
     updateFriends(dt);
     updateCaterpillar(dt);
+    updateMitt(dt);
+    updateChild(dt);
+    updateHpBar();
     updateHUD();
   }
+
+  updateShards(dt);
 
   // 트램펄린 발판이 눌렸다가 돌아옴
   boxes.forEach(function (b) {
@@ -1471,6 +1992,7 @@ window.FOOD_GAME = {
   player:player, caterpillar:caterpillar, boxes:boxes, holes:holes, game:game, CHARS:CHARS,
   getFriends: function () { return friends; },
   getCamYaw: function () { return camYaw; },
+  mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
 document.getElementById('startBtn').onclick = restart;
