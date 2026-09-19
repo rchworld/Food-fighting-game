@@ -1208,7 +1208,12 @@ function turnCamera(mx, my) {
 }
 
 renderer.domElement.addEventListener('click', function () {
-  if (!locked() && renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
+  // 포인터 락이 막힌 환경(일부 iframe 등)에서도 오류 없이 넘어가고, 드래그로 대신한다
+  if (locked() || !renderer.domElement.requestPointerLock) return;
+  try {
+    var r = renderer.domElement.requestPointerLock();
+    if (r && r.catch) r.catch(function () {});
+  } catch (err) { /* 드래그로 시점을 돌리면 됩니다 */ }
 });
 renderer.domElement.addEventListener('mousedown', function (e) {
   dragging = true; lastX = e.clientX; lastY = e.clientY;
