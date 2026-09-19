@@ -2826,14 +2826,11 @@ function updateChild(dt) {
 
   CHILD.timer -= dt;
 
+  /* --- 등교 --- */
+  if (CHILD.state === 'school') { updateSchoolTrip(dt); return; }
+
   /* --- 안방 화풀이 --- */
-  if (CHILD.state === 'school') {
-    cs.innerHTML = '🎒 <b>학교에 갔다</b>';
-    cs.style.color = '#8fd0ff';
-  } else if (CHILD.state === 'fight') {
-    cs.innerHTML = '🥊 <b>엄마와 싸우는 중</b> ' + Math.max(0, Math.ceil(MOM.fightT)) + '초';
-    cs.style.color = '#ff9a3a';
-  } else if (CHILD.state === 'tantrum') {
+  if (CHILD.state === 'tantrum') {
     updateTantrum(dt);
     return;
   }
