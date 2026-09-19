@@ -97,6 +97,7 @@
     <div>👶 아이 위 <b id="lapCount">0</b> / 2</div>
     <div id="childState">😴 자는 중</div>
     <div id="timeOfDay">☀️ 낮</div>
+    <div id="schoolDist" style="display:none">🏫 학교까지 300m</div>
   </div>
 </div>
 
@@ -135,6 +136,9 @@
       가끔 엄마가 <b>스파이더맨처럼 날아와 아이를 낚아채고</b> 주먹다짐을 합니다.
       밀린 몸이 벽에 부딪치면 <b>벽에 진짜 구멍</b>이 뚫려 건너편이 보입니다.<br>
       <b>3분마다 낮과 밤</b>이 바뀝니다.<br>
+      벽에 뚫린 구멍으로 <b>집 밖</b>에 나갈 수 있습니다. 서쪽 길을 <b>300m</b> 걸어가면 학교가 나오는데,
+      안경 쓴 할머니 선생님이 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 던져
+      <b>길가 집을 한 채씩</b> 무너뜨립니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
     </p>
@@ -996,12 +1000,31 @@ function startFight() {
 function endFight() {
   MOM.state = 'back';
   CHILD.stand.rotation.z = 0;
-  if (CHILD.prevState === 'sleep' || CHILD.prevState === 'return') {
-    CHILD.state = 'return'; CHILD.timer = 99;
+  CHILD.beams.forEach(function (b) { b.visible = false; });
+  CHILD.state = 'school';              // 엄마랑 다 싸우고 나면 학교로 간다
+  CHILD.schoolPhase = 'going';
+  CHILD.timer = 0;
+  toast('🎒 아이가 학교로 간다', '엄마와 다 싸우고 서쪽 길로 떠납니다');
+}
+
+// 아이의 등교 — 서쪽 길을 따라 300m 걸어가 학교에 있다가 돌아온다
+function updateSchoolTrip(dt) {
+  if (CHILD.schoolPhase === 'going') {
+    var d = walkPerson(CHILD, SCHOOL.maxX + 7, SCHOOL.z + 4, 9.0, dt);
+    if (d < 1.5) { CHILD.schoolPhase = 'at'; CHILD.timer = 25; }
+  } else if (CHILD.schoolPhase === 'at') {
+    CHILD.timer -= dt;
+    walkPerson(CHILD, SCHOOL.maxX + 7 + Math.sin(game.time * 0.6) * 3,
+               SCHOOL.z + 4 + Math.cos(game.time * 0.5) * 3, 1.6, dt);
+    if (CHILD.timer <= 0) CHILD.schoolPhase = 'back';
   } else {
-    CHILD.state = 'angry'; CHILD.timer = Math.max(6, CHILD.prevTimer || 0);
+    var d2 = walkPerson(CHILD, SOFA_SPOT.x, SOFA_SPOT.z, 9.0, dt);
+    if (d2 < 1.0) { CHILD.state = 'return'; CHILD.timer = 99; }
   }
-  toast('😤 싸움 끝', '엄마는 2층으로 올라갑니다');
+  CHILD.pos.y = 0;
+  CHILD.stand.position.copy(CHILD.pos);
+  CHILD.stand.position.y = Math.abs(Math.sin(game.time * 7)) * 0.07;
+  CHILD.stand.rotation.y = CHILD.yaw;
 }
 
 function updateFight(dt) {
@@ -1041,6 +1064,132 @@ function updateFight(dt) {
   CHILD.stand.rotation.y = CHILD.yaw;
 
   if (MOM.fightT <= 0) endFight();
+}
+
+/* ------------------------------------------------------------------ *
+ *  선생님 — 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 집에 던진다
+ * ------------------------------------------------------------------ */
+
+var SCHOOL_PARTS = ['학교 벽', '학교 유리창', '학교 지붕', '학교 책상', '칠판'];
+
+function freeStudent() {
+  for (var i = 0; i < STUDENTS.length; i++) {
+    if (!STUDENTS[i].taken && !STUDENTS[i].thrown) return STUDENTS[i];
+  }
+  return null;
+}
+
+function updateTeacher(dt) {
+  var t = TEACHER;
+
+  /* --- 학생이 날아가는 중 --- */
+  if (t.flight) {
+    var f = t.flight;
+    f.t += dt;
+    var k = Math.min(1, f.t / f.dur);
+    var st = f.student.group;
+    st.position.set(f.from.x + (f.to.x - f.from.x) * k,
+                    f.from.y + (f.to.y - f.from.y) * k + Math.sin(Math.PI * k) * (f.arc || 7),
+                    f.from.z + (f.to.z - f.from.z) * k);
+    st.rotation.x += dt * 14;
+    if (k >= 1) {
+      st.rotation.x = 0;
+      st.position.y = 0;
+      smashBox(f.house, '선생님');
+      t.flight = null;
+      t.restT = 1.2;
+    }
+    return;
+  }
+
+  t.restT -= dt;
+  if (t.restT > 0) { t.group.position.copy(t.pos); t.group.rotation.y = t.yaw; return; }
+
+  /* --- 학교 부수기 --- */
+  if (t.state === 'smash') {
+    if (!t.held) {
+      var s2 = freeStudent();
+      if (s2) { s2.taken = true; t.held = s2; }
+    }
+    if (!t.target || t.target.cut) {
+      var list = smashablesIn(SCHOOL_PARTS);
+      var best = null, bestD = Infinity;
+      list.forEach(function (b) {
+        var d = Math.hypot((b.min.x + b.max.x) / 2 - t.pos.x, (b.min.z + b.max.z) / 2 - t.pos.z);
+        if (d < bestD) { bestD = d; best = b; }
+      });
+      t.target = best;
+      t.swingT = 0;
+      if (!best) {                       // 학교를 다 부쉈다
+        t.state = 'throw';
+        t.throwIdx = 0;
+        t.restT = 1.5;
+        return;
+      }
+    }
+    var b2 = t.target;
+    var tx = (b2.min.x + b2.max.x) / 2, tz = (b2.min.z + b2.max.z) / 2;
+    var d2 = walkPerson(t, tx, tz + 2.0, 2.4, dt);
+    if (d2 < 2.6) {
+      t.swingT += dt;
+      if (t.swingT > 0.55) {
+        smashBox(b2, '선생님');
+        t.target = null; t.swingT = 0; t.restT = 0.45;
+      }
+    }
+  } else {
+    /* --- 길가 집을 한 채씩 부수기 (처음 시작한 집은 건드리지 않는다) --- */
+    while (t.throwIdx < HOUSES.length && HOUSES[t.throwIdx].cut) t.throwIdx++;
+    if (t.throwIdx >= HOUSES.length) {
+      walkPerson(t, SCHOOL.x + Math.sin(game.time * 0.4) * 8, SCHOOL.z, 1.4, dt);
+      t.group.position.copy(t.pos); t.group.rotation.y = t.yaw;
+      t.arms.forEach(function (a) { a.rotation.x = 0; });
+      return;
+    }
+    var house = HOUSES[t.throwIdx];
+    var hx = (house.min.x + house.max.x) / 2, hz = (house.min.z + house.max.z) / 2;
+    if (!t.held) {
+      var s3 = freeStudent();
+      if (s3) { s3.taken = true; t.held = s3; }
+      else { t.throwIdx = HOUSES.length; return; }
+    }
+    // 걸어가지 않고 그 자리에서 멀리 던진다
+    var wantYaw = Math.atan2(hx - t.pos.x, hz - t.pos.z);
+    var diff = ((wantYaw - t.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    t.yaw += diff * Math.min(1, 6 * dt);
+    t.swingT += dt;
+    if (t.swingT > 0.8) {
+      var stu = t.held;
+      stu.taken = false; stu.thrown = true;
+      t.held = null; t.swingT = 0;
+      var dist = Math.hypot(hx - t.pos.x, hz - t.pos.z);
+      t.flight = {
+        student: stu, house: house,
+        t: 0, dur: Math.max(1.2, Math.min(3.2, dist / 90)),
+        arc: Math.min(38, 6 + dist * 0.11),
+        from: stu.group.position.clone(),
+        to: new THREE.Vector3(hx, 2.2, hz)
+      };
+      t.throwIdx++;
+      toast('🎓 선생님이 학생을 던졌다!', Math.round(dist) + 'm 날아가 집 한 채가 박살납니다');
+    }
+  }
+
+  /* --- 표시 --- */
+  var swing = Math.min(1, t.swingT / 0.7);
+  t.group.position.copy(t.pos);
+  t.group.position.y += Math.abs(Math.sin(game.time * 5)) * 0.04;
+  t.group.rotation.y = t.yaw;
+  t.arms.forEach(function (a) { a.rotation.x = -swing * 2.6; });
+
+  // 들고 있는 학생은 팔 끝에서 휘둘린다
+  if (t.held) {
+    var ang = -swing * 2.6;
+    var hx2 = Math.sin(t.yaw) * (0.2 + Math.sin(-ang) * 1.5);
+    var hz2 = Math.cos(t.yaw) * (0.2 + Math.sin(-ang) * 1.5);
+    t.held.group.position.set(t.pos.x + hx2, 2.1 + Math.cos(ang) * 1.4, t.pos.z + hz2);
+    t.held.group.rotation.set(ang * 1.2, t.yaw, 0);
+  }
 }
 
 function updateMom(dt) {
@@ -1137,6 +1286,185 @@ function updateMom(dt) {
   // 부술 때 팔을 번쩍 들었다 내린다
   MOM.arms.forEach(function (a) { a.rotation.x = -swing * 2.4; });
 }
+
+/* ------------------------------------------------------------------ *
+ *  집 밖 — 서쪽으로 300m 가면 학교가 있다
+ * ------------------------------------------------------------------ */
+
+var SCHOOL = { x:-318, z:-11, minX:-330, maxX:-306, minZ:-20, maxZ:-2 };
+var HOUSES = [];          // 길가의 집들 (선생님이 하나씩 부순다)
+var STUDENTS = [];        // 학교 학생들
+
+(function buildOutside() {
+  // 땅
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(380, 80),
+    new THREE.MeshStandardMaterial({ color:0x6f8f5a, roughness:1 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(-165, -0.02, -8);
+  ground.receiveShadow = true;
+  scene.add(ground);
+
+  // 길
+  var road = new THREE.Mesh(new THREE.PlaneGeometry(330, 5.2),
+    new THREE.MeshStandardMaterial({ color:0x4b4a4d, roughness:0.95 }));
+  road.rotation.x = -Math.PI / 2;
+  road.position.set(-165, 0.005, -11);
+  road.receiveShadow = true;
+  scene.add(road);
+  for (var m = 0; m < 54; m++) {          // 중앙선
+    var dash = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.18),
+      new THREE.MeshBasicMaterial({ color:0xe8e2c8 }));
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(-18 - m * 6, 0.012, -11);
+    scene.add(dash);
+  }
+
+  // 길가의 집 5채 (처음 시작한 집은 목록에 없다)
+  var spots = [[-58, -20.5], [-112, -1.5], [-166, -20.5], [-220, -1.5], [-268, -20.5]];
+  spots.forEach(function (sp, i) {
+    var x = sp[0], z = sp[1];
+    var col = [0xd9b48a, 0xc9a2a2, 0xa9bfd0, 0xd4c78a, 0xb6a7cd][i];
+    var body = solid(x - 4.5, x + 4.5, 0, 4.2, z - 4, z + 4, col,
+                     { name:'길가 집 ' + (i + 1) });
+    var box = boxes[boxes.length - 1];
+    var roof = new THREE.Mesh(new THREE.ConeGeometry(7.4, 2.6, 4), mat(0x8a4a3c, 0.9));
+    roof.position.set(x, 5.5, z); roof.rotation.y = Math.PI / 4; roof.castShadow = true;
+    scene.add(roof);
+    var doorM = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.1, 0.12), mat(0x6b4a34, 0.8));
+    doorM.position.set(x, 1.05, z + (z > -11 ? -4.06 : 4.06));
+    scene.add(doorM);
+    var win = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 0.1),
+      new THREE.MeshStandardMaterial({ color:0xbfe4ff, roughness:0.2, transparent:true, opacity:0.75 }));
+    win.position.set(x - 2.4, 2.4, z + (z > -11 ? -4.06 : 4.06));
+    scene.add(win);
+    box.extras = [roof, doorM, win];
+    HOUSES.push(box);
+  });
+
+  // 가로수
+  for (var t = 0; t < 22; t++) {
+    var tx = -24 - t * 13, tz = t % 2 ? -15.5 : -6.5;
+    var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 2.2, 8), mat(0x6b4a30, 0.9));
+    trunk.position.set(tx, 1.1, tz); trunk.castShadow = true; scene.add(trunk);
+    var leaves = new THREE.Mesh(new THREE.SphereGeometry(1.5, 12, 10), mat(0x3f7f3a, 0.95));
+    leaves.position.set(tx, 3.1, tz); leaves.castShadow = true; scene.add(leaves);
+  }
+})();
+
+/* ---- 학교 ---- */
+(function buildSchool() {
+  var X0 = SCHOOL.minX, X1 = SCHOOL.maxX, Z0 = SCHOOL.minZ, Z1 = SCHOOL.maxZ;
+  var wallMatS = mat(0xe4d9c4, 0.9);
+  var glassMat = new THREE.MeshStandardMaterial({
+    color:0xa9d8ef, roughness:0.08, metalness:0.1, transparent:true, opacity:0.42
+  });
+
+  solid(X0, X1, 0, 0.2, Z0, Z1, 0xcfc6b4, { name:'학교 바닥' });
+  solid(X0, X1, 4.4, 4.8, Z0, Z1, 0x8a5a4a, { name:'학교 지붕' });
+
+  // 앞뒤 벽 — 가운데를 크게 비워 유리창을 넣는다
+  [Z1, Z0].forEach(function (zc, side) {
+    var z0 = side ? zc : zc - 0.25, z1 = side ? zc + 0.25 : zc;
+    solid(X0, X1, 0, 0.9, z0, z1, 0, { material:wallMatS, name:'학교 벽' });
+    solid(X0, X1, 3.4, 4.4, z0, z1, 0, { material:wallMatS, name:'학교 벽' });
+    for (var i = 0; i < 4; i++) {
+      var wx0 = X0 + i * 6 + 0.6, wx1 = wx0 + 4.8;
+      var glass = new THREE.Mesh(new THREE.BoxGeometry(wx1 - wx0, 2.5, 0.12), glassMat);
+      glass.position.set((wx0 + wx1) / 2, 2.15, (z0 + z1) / 2);
+      scene.add(glass);
+      boxes.push({ min:{x:wx0,y:0.9,z:z0}, max:{x:wx1,y:3.4,z:z1},
+                   tramp:false, name:'학교 유리창', mesh:glass });
+      if (i < 3) solid(wx1, wx1 + 1.2, 0.9, 3.4, z0, z1, 0, { material:wallMatS, name:'학교 벽' });
+    }
+    solid(X0, X0 + 0.6, 0.9, 3.4, z0, z1, 0, { material:wallMatS, name:'학교 벽' });
+    solid(X1 - 0.6, X1, 0.9, 3.4, z0, z1, 0, { material:wallMatS, name:'학교 벽' });
+  });
+  // 좌우 벽 (오른쪽은 출입구로 비워 둔다)
+  solid(X0 - 0.25, X0, 0, 4.4, Z0, Z1, 0, { material:wallMatS, name:'학교 벽' });
+  solid(X1, X1 + 0.25, 0, 4.4, Z0, Z0 + 6.5, 0, { material:wallMatS, name:'학교 벽' });
+  solid(X1, X1 + 0.25, 0, 4.4, Z1 - 6.5, Z1, 0, { material:wallMatS, name:'학교 벽' });
+  solid(X1, X1 + 0.25, 3.0, 4.4, Z0 + 6.5, Z1 - 6.5, 0, { material:wallMatS, name:'학교 벽' });
+
+  // 칠판
+  solid(X0 + 0.3, X0 + 0.4, 1.3, 3.3, Z0 + 4, Z1 - 4, 0x2f4436, { name:'칠판' });
+
+  // 책상과 앉아 있는 학생들
+  var deskMat = mat(0xc79a6d, 0.85), skin = mat(0xf3c9a4, 0.8);
+  for (var r = 0; r < 3; r++) {
+    for (var c = 0; c < 4; c++) {
+      var dx = X0 + 6 + r * 6.5, dz = Z0 + 3.5 + c * 3.6;
+      solid(dx - 0.9, dx + 0.9, 0.2, 0.95, dz - 0.6, dz + 0.6, 0, { material:deskMat, name:'학교 책상' });
+      // 의자에 앉은 학생
+      var g = new THREE.Group();
+      var body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.95, 0.5),
+        mat([0x5f8fc0, 0xc06a6a, 0x6fb06a, 0xc0a24a][(r + c) % 4], 0.85));
+      body.position.y = 0.72; body.castShadow = true; g.add(body);
+      var head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 12), skin);
+      head.position.y = 1.52; head.castShadow = true; g.add(head);
+      var hair = new THREE.Mesh(new THREE.SphereGeometry(0.375, 16, 12, 0, 6.3, 0, 1.3),
+        mat(0x2f2018, 0.9));
+      hair.position.y = 1.55; g.add(hair);
+      [-1, 1].forEach(function (sd) {
+        var eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), mat(0x161218, 0.4));
+        eye.position.set(sd * 0.13, 1.54, 0.33); g.add(eye);
+      });
+      g.position.set(dx + 1.35, 0, dz);
+      g.rotation.y = -Math.PI / 2;
+      scene.add(g);
+      STUDENTS.push({ group:g, home:g.position.clone(), taken:false, thrown:false });
+    }
+  }
+})();
+
+/* ---- 안경 쓴 할머니 선생님 ---- */
+var TEACHER = {
+  pos: new THREE.Vector3(SCHOOL.minX + 3, 0, SCHOOL.z),
+  yaw: Math.PI / 2,
+  state: 'smash',            // smash | throw
+  target: null,
+  held: null,
+  swingT: 0,
+  restT: 1.5,
+  throwIdx: 0,
+  flight: null,
+  group: new THREE.Group()
+};
+scene.add(TEACHER.group);
+
+(function buildTeacher() {
+  var g = TEACHER.group;
+  var dress = mat(0x6f6a86, 0.9), skin = mat(0xefd3bb, 0.8);
+  var skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.72, 1.25, 14), dress);
+  skirt.position.y = 0.62; skirt.castShadow = true; g.add(skirt);
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.95, 0.46), dress);
+  torso.position.y = 1.72; torso.castShadow = true; g.add(torso);
+  TEACHER.arms = [];
+  [-0.52, 0.52].forEach(function (o) {
+    var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.1, 0.9, 10), dress);
+    arm.geometry.translate(0, -0.45, 0);
+    arm.position.set(o, 2.12, 0.02); arm.castShadow = true;
+    g.add(arm); TEACHER.arms.push(arm);
+  });
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.38, 18, 14), skin);
+  head.position.y = 2.52; head.castShadow = true; g.add(head);
+  var bun = new THREE.Mesh(new THREE.SphereGeometry(0.42, 18, 14, 0, 6.3, 0, 1.25),
+    mat(0xdcdcdc, 0.85));                                  // 흰 머리
+  bun.position.y = 2.55; g.add(bun);
+  var knot = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10), mat(0xd2d2d2, 0.85));
+  knot.position.set(0, 2.62, -0.42); g.add(knot);
+  // 안경
+  [-1, 1].forEach(function (sd) {
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.025, 8, 18), mat(0x2b2b2b, 0.4, 0.5));
+    rim.position.set(sd * 0.16, 2.54, 0.35); g.add(rim);
+    var lens = new THREE.Mesh(new THREE.CircleGeometry(0.12, 16),
+      new THREE.MeshStandardMaterial({ color:0xdff0ff, transparent:true, opacity:0.5 }));
+    lens.position.set(sd * 0.16, 2.54, 0.352); g.add(lens);
+  });
+  var bridge = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.02, 0.02), mat(0x2b2b2b, 0.4, 0.5));
+  bridge.position.set(0, 2.54, 0.35); g.add(bridge);
+  var mouth = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.03), mat(0x8a4a44, 0.6));
+  mouth.position.set(0, 2.33, 0.37); g.add(mouth);
+})();
 
 /* ---- 트램펄린 4개 ---- */
 // 트램펄린: 최고점(apexY)까지 솟구치면서, 그 시점에 착지 지점(landX, landZ) 위에 오도록
@@ -1291,16 +1619,29 @@ function moveAndCollide(p, r, h, vel, dt, ghost) {
 
 // 실내/마당 경계 (벽 밖으로 못 나가게 안전망)
 function clampWorld(p) {
+  // 집 껍데기 밖으로 나가면(= 벽에 뚫린 구멍으로 빠져나가면) 자유롭게 돌아다닌다
+  var insideShell =
+    (p.x > -13.95 && p.x < 4.95 && p.z > -16.55 && p.z < 5.0) ||    // 집 안
+    (p.x > -8.75 && p.x < 8.75 && p.z >= 5.0 && p.z < 17.95);       // 마당
+  if (!insideShell) {
+    p.x = Math.max(-344, Math.min(24, p.x));
+    p.z = Math.max(-44, Math.min(29, p.z));
+    return;
+  }
+
+  // 아래 범위는 벽보다 살짝 바깥이다. 막는 일은 벽 충돌체가 하고,
+  // 벽에 구멍이 뚫리면 그 자리로 빠져나갈 수 있다.
   var door = p.x > -2.88 && p.x < -1.72;      // 주방 <-> 거실 문
+  var bedDoor = p.z > -12.6 && p.z < -11.2;   // 거실 <-> 안방 문
   if (p.z < -5.5) {                     // 거실 + 안방
-    p.x = Math.max(p.x < -6.1 ? -13.75 : -5.85, Math.min(5.85, p.x));
-    p.z = Math.max(-16.35, Math.min(door ? -4.95 : -6.15, p.z));
+    p.x = Math.max((p.x < -6.1 || bedDoor) ? -14.6 : -6.6, Math.min(6.6, p.x));
+    p.z = Math.max(-17.2, Math.min(door ? -4.95 : -6.15, p.z));
   } else if (p.z < 5.0) {               // 주방
-    p.x = Math.max(-4.9, Math.min(4.9, p.x));
-    p.z = Math.max(door ? -6.05 : -4.9, Math.min(p.z, 5.4));
+    p.x = Math.max(-5.7, Math.min(5.7, p.x));
+    p.z = Math.max(door ? -6.05 : -5.7, Math.min(p.z, 5.4));
   } else {                              // 마당
-    p.x = Math.max(-8.7, Math.min(8.7, p.x));
-    p.z = Math.min(17.7, p.z);
+    p.x = Math.max(-9.4, Math.min(9.4, p.x));
+    p.z = Math.min(18.4, p.z);
   }
 }
 
@@ -1468,7 +1809,7 @@ function spawnFriends() {
 function region(z) { return z < -5.5 ? 2 : (z < 5 ? 0 : 1); }
 
 function outOfBounds(x, z) {
-  if (z < -5.5) return x < -13.7 || x > 5.8 || z < -16.3 || z > -6.2;
+  if (z < -5.5) return x < -13.6 || x > 5.8 || z < -16.3 || z > -6.2;
   if (z < 5) return x < -4.8 || x > 4.8 || z < -4.8;
   return x < -8.6 || x > 8.6 || z > 17.5;
 }
@@ -1659,6 +2000,14 @@ function restart() {
   CHILD.smashTarget = null; CHILD.smashT = 0;
   MOM.pos.set(2.0, LOFT.y, -1.6); MOM.target = null; MOM.smashT = 0; MOM.restT = 0;
   MOM.state = 'loft'; MOM.nextLeap = 30 + Math.random() * 25; MOM.fightT = 0;
+  TEACHER.pos.set(SCHOOL.minX + 3, 0, SCHOOL.z);
+  TEACHER.state = 'smash'; TEACHER.target = null; TEACHER.held = null;
+  TEACHER.swingT = 0; TEACHER.restT = 1.5; TEACHER.throwIdx = 0; TEACHER.flight = null;
+  STUDENTS.forEach(function (st) {
+    st.taken = false; st.thrown = false;
+    st.group.position.copy(st.home);
+    st.group.rotation.set(0, -Math.PI / 2, 0);
+  });
   MOM.group.rotation.x = 0; MOM.group.rotation.z = 0;
   MOM.arms.forEach(function (a) { a.rotation.x = 0; });
   CHILD.stand.rotation.z = 0;
@@ -1673,7 +2022,11 @@ function restart() {
   while (shards.length) { scene.remove(shards.pop().mesh); }
   while (ashes.length) { scene.remove(ashes.pop()); }
   boxes.forEach(function (b) {
-    if (b.cut) { b.cut = false; b.disabled = false; if (b.mesh) b.mesh.visible = true; }
+    if (b.cut) {
+      b.cut = false; b.disabled = false;
+      if (b.mesh) b.mesh.visible = true;
+      if (b.extras) b.extras.forEach(function (m) { m.visible = true; });
+    }
   });
   cutHalves.forEach(function (m) { scene.remove(m); });
   cutHalves.length = 0;
@@ -2095,6 +2448,7 @@ function smashBox(b, who) {
   var cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
   var sx = b.max.x - b.min.x, sz = b.max.z - b.min.z;
   if (b.mesh) b.mesh.visible = false;
+  if (b.extras) b.extras.forEach(function (m) { m.visible = false; });
 
   shatter({ x:cx, y:(b.min.y + b.max.y) / 2, z:cz }, 0x6b6560, 12);
   scheduleRepair(b);
@@ -2148,6 +2502,7 @@ function punchWallHole(px, py, pz, r) {
   var u1 = u0 + 2 * r;
   var v0 = Math.max(vMin, Math.min(vMax - 2 * r, py - r));
   var v1 = v0 + 2 * r;
+  if (v0 - vMin < 0.75) v0 = vMin;        // 낮게 맞으면 바닥까지 무너져 걸어 나갈 수 있다
   if (uMax - uMin < 2 * r + 0.1) return false;      // 너무 좁은 벽은 통째로 남긴다
 
   var m = wall.mesh ? wall.mesh.material : mat(0xe3d9ca, 0.95);
@@ -2426,7 +2781,10 @@ function updateChild(dt) {
   CHILD.timer -= dt;
 
   /* --- 안방 화풀이 --- */
-  if (CHILD.state === 'fight') {
+  if (CHILD.state === 'school') {
+    cs.innerHTML = '🎒 <b>학교에 갔다</b>';
+    cs.style.color = '#8fd0ff';
+  } else if (CHILD.state === 'fight') {
     cs.innerHTML = '🥊 <b>엄마와 싸우는 중</b> ' + Math.max(0, Math.ceil(MOM.fightT)) + '초';
     cs.style.color = '#ff9a3a';
   } else if (CHILD.state === 'tantrum') {
@@ -3120,6 +3478,14 @@ function updateHUD() {
     info.textContent = hideOptionsText();
   }
   document.getElementById('dist').textContent = '애벌레 거리 ' + d.toFixed(1) + 'm';
+  var sd = document.getElementById('schoolDist');
+  if (player.pos.x < -14) {
+    var toSchool = Math.max(0, player.pos.x - (SCHOOL.maxX + 2));
+    sd.style.display = '';
+    sd.innerHTML = toSchool > 1 ? '🏫 학교까지 <b>' + Math.round(toSchool) + 'm</b>' : '🏫 <b>학교 도착</b>';
+  } else {
+    sd.style.display = 'none';
+  }
   document.getElementById('catHp').textContent = Math.max(0, caterpillar.hp) + '%';
   var tod = document.getElementById('timeOfDay');
   var left = Math.ceil(DAY_LENGTH - (game.time % DAY_LENGTH));
@@ -3128,7 +3494,10 @@ function updateHUD() {
   tod.style.color = night.on ? '#8fa8e0' : '#ffd88a';
 
   var cs = document.getElementById('childState');
-  if (CHILD.state === 'fight') {
+  if (CHILD.state === 'school') {
+    cs.innerHTML = '🎒 <b>학교에 갔다</b>';
+    cs.style.color = '#8fd0ff';
+  } else if (CHILD.state === 'fight') {
     cs.innerHTML = '🥊 <b>엄마와 싸우는 중</b> ' + Math.max(0, Math.ceil(MOM.fightT)) + '초';
     cs.style.color = '#ff9a3a';
   } else if (CHILD.state === 'tantrum') {
@@ -3176,6 +3545,7 @@ function loop(now) {
     updateRepairs(dt);
     updateChild(dt);
     updateMom(dt);
+    updateTeacher(dt);
     updateFart(dt);
     updateHpBar();
     updateFruitBars();
@@ -3228,6 +3598,7 @@ window.FOOD_GAME = {
   ashes: ashes, MOM: MOM, cctvOn: cctvOn,
   night: night, brokenWalls: brokenWalls, wallPieces: wallPieces, punchWallHole: punchWallHole,
   repairs: repairs, cutBoxForTest: cutBox,
+  HOUSES: HOUSES, STUDENTS: STUDENTS, TEACHER: TEACHER, SCHOOL: SCHOOL,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
