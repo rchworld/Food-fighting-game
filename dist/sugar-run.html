@@ -1164,8 +1164,36 @@ function updateFriendCount() {
  * ------------------------------------------------------------------ */
 
 var keys = {};
+
+// 창이 포커스를 잃으면 keyup 이 오지 않아 키가 눌린 채로 남는다 -> 혼자 계속 걸어간다.
+// 그런 상황마다 눌린 키를 모두 놓아 준다.
+function clearKeys() {
+  for (var k in keys) keys[k] = false;
+}
+addEventListener('blur', clearKeys);
+addEventListener('focus', clearKeys);
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) clearKeys();
+});
+document.addEventListener('pointerlockchange', clearKeys);
+renderer.domElement.addEventListener('mouseleave', clearKeys);
+
+// 포커스를 잃지 않았는데 keyup 만 유실되는 경우까지 대비한 안전장치.
+// 키를 누르고 있으면 브라우저가 keydown 을 반복해서 보내므로, 그 반복이 끊기면 뗀 것으로 본다.
+// (반복을 보내지 않는 환경에서는 아예 동작하지 않도록 sawRepeat 으로 막아 둔다)
+var keyTime = {}, sawRepeat = false;
+
+function releaseStuckKeys(now) {
+  if (!sawRepeat) return;
+  for (var k in keys) {
+    if (keys[k] && now - (keyTime[k] || 0) > 1200) keys[k] = false;
+  }
+}
+
 addEventListener('keydown', function (e) {
   if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].indexOf(e.code) >= 0) e.preventDefault();
+  if (e.repeat) sawRepeat = true;
+  keyTime[e.code] = performance.now();
   keys[e.code] = true;
   if (e.code === 'KeyR') restart();
   // 구멍에서 나오기는 누른 순간에 바로 반응한다 (프레임 사이에 놓치지 않도록)
@@ -1202,6 +1230,7 @@ addEventListener('mousemove', function (e) {
 });
 document.addEventListener('pointerlockchange', function () {
   document.getElementById('mouseHint').style.display = locked() ? 'none' : '';
+  clearKeys();
 });
 
 /* ------------------------------------------------------------------ *
@@ -1212,6 +1241,7 @@ var game = { running:false, time:0, level:1, over:false, grace:0 };
 var GRACE = 3.5;   // 시작 직후 애벌레가 아직 눈치채지 못하는 시간(초)
 
 function restart() {
+  clearKeys();
   game.running = true; game.time = 0; game.level = 1; game.over = false; game.grace = GRACE;
   player.pos.set(0, 0, 3.0);
   player.vel.set(0, 0, 0);
@@ -2345,6 +2375,8 @@ function loop(now) {
   var dt = Math.min(0.05, (now - prev) / 1000);
   prev = now;
 
+  releaseStuckKeys(now);
+
   if (game.running) {
     var before = Math.floor(game.time / LEVEL_TIME);
     game.time += dt;
@@ -2392,6 +2424,7 @@ window.FOOD_GAME = {
   player:player, caterpillar:caterpillar, boxes:boxes, holes:holes, game:game, CHARS:CHARS,
   getFriends: function () { return friends; },
   getCamYaw: function () { return camYaw; },
+  keys: keys,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
