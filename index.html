@@ -125,7 +125,8 @@
       단 한 번 쓰면 미트는 땅에 떨어지니 다시 주워야 합니다.<br>
       아이 위에 과일이 <b>2개</b> 올라가면 아이가 깨어나 <b>30초 동안 눈에서 레이저</b>를 쏘며 집 안을 돌아다닙니다.
       레이저가 닿는 물건은 두 동강 나고, 과일은 <b>총 10초</b>를 맞으면 죽습니다.<br>
-      냉장고는 열려 있습니다. 앞의 트램펄린을 타면 <b>냉장고 안</b>으로 들어가는데, 애벌레는 못 들어옵니다.
+      냉장고 앞 트램펄린을 타면 <b>2층 다락</b>으로 올라갑니다. 애벌레는 2층에도, 열린 냉장고 안에도 못 들어옵니다.<br>
+      다른 과일들은 눈치가 없어서 자는 아이 허벅지 위에 겁 없이 기어오릅니다.
     </p>
     <button id="startBtn">게임 시작</button>
   </div>
@@ -247,7 +248,7 @@ function solid(x0, x1, y0, y1, z0, z1, color, opts) {
   if (!opts.noCollide) {
     boxes.push({
       min: { x:x0, y:y0, z:z0 }, max: { x:x1, y:y1, z:z1 },
-      tramp: false, name: opts.name || '', mesh: m
+      tramp: false, name: opts.name || '', noCat: !!opts.noCat, mesh: m
     });
   }
   return m;
@@ -691,6 +692,53 @@ holes.push({ x:2.0, z:-6.85, y:0, r:0.55, fit:9, name:'주방으로 가는 구�
              passage:{ x:2.0, y:0, z:-3.95 } });
 holeMarker(2.0, 0, -6.85, 0.55);
 
+/* ------------------------------------------------------------------ *
+ *  2층 다락 — 냉장고 앞 트램펄린으로 올라간다 (애벌레는 못 올라온다)
+ * ------------------------------------------------------------------ */
+
+var LOFT = { minX:0.5, maxX:5.0, minZ:-5.0, maxZ:-0.5, y:3.2 };
+
+// 바닥 (애벌레는 타고 오르지 못한다)
+solid(LOFT.minX, LOFT.maxX, 3.0, LOFT.y, LOFT.minZ, LOFT.maxZ, 0xc8a273,
+      { name:'2층 바닥', noCat:true });
+// 위층 벽
+var loftWall = mat(0xeee5d6, 0.95);
+solid(5.0, 5.2, 3.0, 5.6, -5.0, -0.5, 0, { material:loftWall, name:'벽' });
+solid(0.5, 5.2, 3.0, 5.6, -5.2, -5.0, 0, { material:loftWall, name:'벽' });
+// 난간 (한쪽은 비워 둬서 뛰어내릴 수 있다)
+solid(0.5, 0.62, LOFT.y, LOFT.y + 0.42, -5.0, -1.6, 0xa87f52, { name:'2층 난간', noCat:true });
+solid(0.5, 5.0, LOFT.y, LOFT.y + 0.42, -0.62, -0.5, 0xa87f52, { name:'2층 난간', noCat:true });
+
+// 창문
+var loftWin = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1),
+  new THREE.MeshBasicMaterial({ color:0xbfe4ff }));
+loftWin.position.set(5.19, 4.2, -2.6); loftWin.rotation.y = -Math.PI / 2;
+scene.add(loftWin);
+var loftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.24, 1.64), mat(0x8a6a45, 0.9));
+loftFrame.position.set(5.16, 4.2, -2.6); scene.add(loftFrame);
+
+// 작은 침대
+solid(3.6, 4.9, LOFT.y, LOFT.y + 0.28, -4.9, -2.7, 0xb6714f, { name:'2층 침대' });
+solid(3.6, 4.9, LOFT.y + 0.28, LOFT.y + 0.42, -4.9, -2.9, 0xf0e7dc, { name:'2층 이불' });
+solid(3.7, 4.8, LOFT.y + 0.28, LOFT.y + 0.46, -4.85, -4.5, 0xffffff, { name:'2층 베개' });
+
+// 장난감 상자
+solid(0.8, 1.7, LOFT.y, LOFT.y + 0.55, -4.9, -4.0, 0x4f8fc0, { name:'장난감 상자' });
+[[1.0,-4.6,0xe05b5b],[1.35,-4.3,0xf2c14a],[1.15,-4.15,0x5fc26a]].forEach(function (t) {
+  var ball = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), mat(t[2], 0.55));
+  ball.position.set(t[0], LOFT.y + 0.66, t[1]); ball.castShadow = true; scene.add(ball);
+});
+
+// 러그
+var loftRug = new THREE.Mesh(new THREE.CircleGeometry(1.0, 28), mat(0x7fa86b, 0.95));
+loftRug.rotation.x = -Math.PI / 2; loftRug.position.set(2.2, LOFT.y + 0.012, -2.1);
+loftRug.receiveShadow = true; scene.add(loftRug);
+
+// 아래층으로 내려가는 계단 구멍
+holes.push({ x:1.15, z:-1.5, y:LOFT.y, r:0.55, fit:9, name:'2층 계단 구멍',
+             passage:{ x:1.5, y:0, z:-1.9 } });
+holeMarker(1.15, LOFT.y, -1.5, 0.55);
+
 /* ---- 트램펄린 4개 ---- */
 // 트램펄린: 최고점(apexY)까지 솟구치면서, 그 시점에 착지 지점(landX, landZ) 위에 오도록
 // 수평 속도까지 함께 준다 -> 밟으면 "자연스럽게" 가구 위로 올라간다.
@@ -710,7 +758,7 @@ function trampoline(x, z, apexY, landX, landZ, label) {
 trampoline(-0.35, -2.85, 1.15, -0.35, -3.65, '서랍');      // 서랍 앞 -> 열린 서랍 안
 trampoline( 1.95,  0.45, 1.30,  0.60,  0.50, '식탁');      // 식탁 옆 -> 식탁 위
 trampoline(-1.00, 11.30, 1.25, -1.00, 13.00, '마당 책상');  // 마당 책상 앞 -> 책상 위
-trampoline( 3.85, -2.75, 1.05,  3.85, -3.90, '냉장고 속');    // 냉장고 앞 -> 냉장고 위
+trampoline( 3.85, -2.75, 3.62,  3.20, -2.20, '2층');          // 냉장고 앞 -> 2층 다락
 
 // 트램펄린 발사: 목표 최고점까지 솟으면서 착지 지점 위로 날아가는 속도를 계산
 function launch(pos, vel, b) {
@@ -862,16 +910,19 @@ var NOT_CLIMBABLE = { '벽':1, '문틀':1, '울타리':1 };
 // 애벌레가 들어올 수 없는 곳: 거실, 그리고 열린 냉장고 안
 function safeFromCaterpillar(pos) {
   if (pos.z < -5.0) return true;
+  if (pos.y > 2.9) return true;                    // 2층
+
   return pos.x > FRIDGE_IN.minX && pos.x < FRIDGE_IN.maxX &&
          pos.z > FRIDGE_IN.minZ && pos.z < FRIDGE_IN.maxZ &&
          pos.y < FRIDGE_IN.maxY;
 }
 
-function groundHeightAt(x, z) {
+function groundHeightAt(x, z, forCat) {
   var best = 0;
   for (var i = 0; i < boxes.length; i++) {
     var b = boxes[i];
     if (b.disabled || NOT_CLIMBABLE[b.name]) continue;
+    if (forCat && b.noCat) continue;          // 애벌레는 2층을 타고 오르지 못한다
     if (x > b.min.x && x < b.max.x && z > b.min.z && z < b.max.z) {
       if (b.max.y > best) best = b.max.y;   // 애벌레는 냉장고 위까지 타고 오른다
     }
@@ -997,6 +1048,9 @@ function spawnFriends() {
       passCool: 0,
       greed: Math.random(),
       laserT: 0,
+      lapT: 3 + Math.random() * 10,      // 아이 허벅지에 올라가고 싶어지는 시간
+      lapSeek: false,
+      lapStay: 0,
       yaw: 0,
       stuckT: Math.random() * 0.6,
       lastX: w[0],
@@ -1606,9 +1660,10 @@ function updateChild(dt) {
     g.position.y = 1.95 + i * 0.26 + Math.sin(game.time * 1.2 + i) * 0.06;
   });
 
+  document.getElementById('lapCount').textContent = lapRiders().length;
+
   if (CHILD.state === 'sleep') {
     var riders = lapRiders();
-    document.getElementById('lapCount').textContent = riders.length;
     if (riders.length >= WAKE_COUNT) wakeChild(riders.length);
     return;
   }
@@ -1927,7 +1982,7 @@ function updateCaterpillar(dt) {
   c.pos.x = Math.max(-8.6, Math.min(8.6, c.pos.x));
   c.pos.z = Math.max(-4.8, Math.min(17.6, c.pos.z));
 
-  var gh = groundHeightAt(c.pos.x, c.pos.z);
+  var gh = groundHeightAt(c.pos.x, c.pos.z, true);
   c.pos.y += (gh - c.pos.y) * Math.min(1, 6 * dt);
 
   // 몸통 궤적
@@ -2011,7 +2066,7 @@ function updateFriends(dt) {
 
     // 몸집이 들어가는 은신처가 가까우면 숨는다 (겁먹었을 때만)
     f.hideCool -= dt;
-    if (f.panic > 0 && !f.hideSpot && f.hideCool <= 0) f.hideSpot = nearestHole(f);
+    if (f.panic > 0 && !f.hideSpot && f.hideCool <= 0 && !f.lapSeek) f.hideSpot = nearestHole(f);
     if (f.hideSpot && (f.panic <= 0 || catD > 6.5)) f.hideSpot = null;
 
     var aimX, aimZ, sp;
@@ -2023,6 +2078,14 @@ function updateFriends(dt) {
       var fd = fleeDir(f);
       aimX = f.pos.x + fd.x * 4; aimZ = f.pos.z + fd.z * 4;
       sp = f.def.speed * 1.15;
+    } else if (f.lapSeek) {
+      // 과일들은 눈치가 없어서 자는 아이 허벅지 위에 겁 없이 기어오른다
+      if (region(f.pos.z) !== 2) {
+        aimX = 2.0; aimZ = -4.45;                  // 먼저 벽 구멍으로 거실에 간다
+      } else {
+        aimX = f.lapX; aimZ = f.lapZ;
+      }
+      sp = f.def.speed * 0.85;
     } else {
       // 다른 과일도 미트를 탐낸다 — 주인이 없으면 가지러 간다
       if (!mitt.owner && f.greed > 0.6) f.goal.set(mitt.pos.x, 0, mitt.pos.z);
@@ -2045,7 +2108,9 @@ function updateFriends(dt) {
     dx /= l; dz /= l;
 
     // 앞이 막혀 있으면 뚫린 쪽으로 돌아간다 (벽에 계속 부딪히지 않게)
-    if (!pathClear(f, dx, dz, 1.3)) {
+    // 단, 아이한테 기어오르는 중이면 그대로 밀고 올라간다
+    var climbing = f.lapSeek && region(f.pos.z) === 2;
+    if (!climbing && !pathClear(f, dx, dz, 1.3)) {
       for (var t = 1; t <= 5; t++) {
         var a = Math.atan2(dx, dz);
         var cand = [a + t * 0.45, a - t * 0.45];
@@ -2115,9 +2180,32 @@ function updateFriends(dt) {
     if (f.stuckT > 0.7) {
       if (Math.hypot(f.pos.x - f.lastX, f.pos.z - f.lastZ) < 0.18 && f.launchT <= 0) {
         if (f.hideSpot) { f.hideSpot = null; f.hideCool = 2.5; }   // 그 은신처는 잠시 포기
+        else if (f.lapSeek) { if (f.grounded) f.vel.y = f.def.jump; }  // 턱에 걸렸으면 뛴다
         else pickGoal(f);
       }
       f.lastX = f.pos.x; f.lastZ = f.pos.z; f.stuckT = 0;
+    }
+
+    /* --- 아이 허벅지에 올라가고 싶은 마음 --- */
+    if (CHILD.state !== 'sleep') {
+      f.lapSeek = false; f.lapStay = 0;
+      if (f.lapT < 3) f.lapT = 4 + Math.random() * 8;
+    } else if (f.lapSeek) {
+      if (onLap(f.pos, f.def.r)) {
+        f.lapStay -= dt;                      // 올라가면 한참 멍하니 서 있는다
+        if (f.lapStay <= 0) { f.lapSeek = false; f.lapT = 10 + Math.random() * 14; }
+      } else {
+        f.lapT -= dt;
+        if (f.lapT < -14) { f.lapSeek = false; f.lapT = 8 + Math.random() * 10; }
+      }
+    } else {
+      f.lapT -= dt;
+      if (f.lapT <= 0) {
+        f.lapSeek = true;
+        f.lapStay = 4 + Math.random() * 5;
+        f.lapX = (Math.random() - 0.5) * 0.6;
+        f.lapZ = -12.8 + Math.random() * 0.6;
+      }
     }
 
     /* --- 구멍 입구에 닿으면 들어간다 --- */
