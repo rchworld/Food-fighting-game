@@ -132,12 +132,14 @@
       아이가 깨면 먼저 <b>안방</b>으로 달려가 침대·램프·책·책상을 손으로 박살냅니다.
       사람이 부순 물건은 <b>조각조각 재</b>가 되어 바닥에 남습니다.
       그 난동은 <b>2층 CCTV 화면</b>으로 볼 수 있습니다. 화풀이가 끝나야 레이저가 시작됩니다.<br>
-      2층(아이 방)에는 침대·장난감 상자·<b>책꽂이</b>가 있고, <b>엄마</b>가 돌아다니며 그곳 가구를 모두 부숩니다.<br>
+      문은 몸이 닿으면 저절로 열립니다. 2층(아이 방)에는 침대·장난감 상자·<b>책꽂이</b>가 있고, <b>엄마</b>가 돌아다니며 그곳 가구를 모두 부숩니다.<br>
       가끔 엄마가 <b>스파이더맨처럼 날아와 아이를 낚아채고</b> 주먹다짐을 합니다.
       밀린 몸이 벽에 부딪치면 <b>벽에 진짜 구멍</b>이 뚫려 건너편이 보입니다.<br>
       <b>3분마다 낮과 밤</b>이 바뀝니다.<br>
       안방 서쪽 벽의 <b>개구멍</b>으로 언제든 집 밖에 나갈 수 있습니다(벽에 뚫린 구멍으로도 됩니다).
-      길에서는 <b>2.6배로 달려서</b> 서쪽으로 <b>300m</b> 가면 학교가 나오는데,
+      집 앞에 <b>엄마 자동차</b>가 세워져 있습니다. 몸을 대면 훔쳐 타고 <b>5배</b>로 달립니다
+      (Space 로 내립니다). 다만 <b>차를 타면 아이가 2.6배로 쫓아옵니다.</b>
+      걸어가면 길에서는 2.6배로 달립니다. 서쪽으로 <b>300m</b> 가면 학교가 나오는데,
       안경 쓴 할머니 선생님이 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 던져
       <b>길가 집을 한 채씩</b> 무너뜨립니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
@@ -985,8 +987,13 @@ scene.add(MOM.group);
     mat(0x2b1d16, 0.9));
   hair.position.set(0, 2.44, -0.03); g.add(hair);
   [-1, 1].forEach(function (sd) {
-    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mat(0x161218, 0.4));
-    eye.position.set(sd * 0.15, 2.45, 0.37); g.add(eye);
+    // 엄마는 눈이 빨갛다
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10),
+      new THREE.MeshBasicMaterial({ color:0xff2a1e }));
+    eye.position.set(sd * 0.15, 2.45, 0.36); g.add(eye);
+    var glow = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10),
+      new THREE.MeshBasicMaterial({ color:0xff5a3a, transparent:true, opacity:0.35 }));
+    glow.position.set(sd * 0.15, 2.45, 0.36); g.add(glow);
     var brow = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.045, 0.04), mat(0x2b1d16, 0.7));
     brow.position.set(sd * 0.16, 2.58, 0.36); brow.rotation.z = sd * 0.4; g.add(brow);
   });
@@ -1051,6 +1058,31 @@ function endFight() {
   CHILD.schoolPhase = 'going';
   CHILD.timer = 0;
   toast('🎒 아이가 학교로 간다', '엄마와 다 싸우고 서쪽 길로 떠납니다');
+}
+
+var CHASE_SPEED = 2.1 * 2.6;      // 평소 추격 속도의 2.6배
+
+// 차를 탄 과일을 집요하게 쫓아온다 (집 밖까지 따라 나온다)
+function updateChase(dt) {
+  if (!player.inCar) {                         // 차에서 내리면 포기하고 돌아간다
+    CHILD.state = (CHILD.chaseBack === 'sleep' || !CHILD.chaseBack) ? 'return' : CHILD.chaseBack;
+    CHILD.timer = 99;
+    toast('😮‍💨 아이가 추격을 멈췄다', '차에서 내렸습니다');
+    return;
+  }
+
+  walkPerson(CHILD, player.pos.x, player.pos.z, CHASE_SPEED, dt);
+  CHILD.pos.y = 0;
+  CHILD.stand.position.copy(CHILD.pos);
+  CHILD.stand.position.y = Math.abs(Math.sin(game.time * 9)) * 0.09;
+  CHILD.stand.rotation.y = CHILD.yaw;
+
+  // 따라잡히면 몸이 상한다
+  var d = Math.hypot(CHILD.pos.x - player.pos.x, CHILD.pos.z - player.pos.z);
+  if (d < 2.2) {
+    var me = fruits().filter(function (f) { return f.isPlayer; })[0];
+    if (me) damageFruit(me, dt * 1.2, 'chase');
+  }
 }
 
 // 아이의 등교 — 서쪽 길을 따라 300m 걸어가 학교에 있다가 돌아온다
@@ -1334,6 +1366,63 @@ function updateMom(dt) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  문 — 몸이 닿으면 저절로 열린다
+ * ------------------------------------------------------------------ */
+
+var DOORS = [];
+
+// hinge 를 축으로 돌아가는 문. 닫혀 있을 때만 충돌체가 살아 있다.
+function addDoor(hx, hz, w, h, thick, faceX, side, color, name) {
+  var pivot = new THREE.Group();
+  pivot.position.set(hx, 0, hz);
+  scene.add(pivot);
+  var panel = new THREE.Mesh(new THREE.BoxGeometry(faceX ? thick : w, h, faceX ? w : thick),
+    mat(color, 0.8));
+  panel.position.set(faceX ? 0 : side * w / 2, h / 2, faceX ? side * w / 2 : 0);
+  panel.castShadow = true;
+  pivot.add(panel);
+  var knob = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), mat(0xd8c07a, 0.4, 0.6));
+  knob.position.set(faceX ? thick : side * w * 0.88, h * 0.45, faceX ? side * w * 0.88 : thick);
+  pivot.add(knob);
+
+  var x0 = faceX ? hx - thick / 2 : Math.min(hx, hx + side * w);
+  var x1 = faceX ? hx + thick / 2 : Math.max(hx, hx + side * w);
+  var z0 = faceX ? Math.min(hz, hz + side * w) : hz - thick / 2;
+  var z1 = faceX ? Math.max(hz, hz + side * w) : hz + thick / 2;
+  boxes.push({ min:{x:x0,y:0,z:z0}, max:{x:x1,y:h,z:z1}, tramp:false, name:name || '문' });
+  var box = boxes[boxes.length - 1];
+
+  DOORS.push({ pivot:pivot, box:box, open:0, side:side, hx:hx, hz:hz, w:w, faceX:faceX });
+  return box;
+}
+
+function updateDoors(dt) {
+  for (var i = 0; i < DOORS.length; i++) {
+    var d = DOORS[i];
+    if (d.box.cut) { d.pivot.visible = false; continue; }
+    // 사람이나 과일이 가까이 오면 열린다
+    // 문짝 한가운데를 기준으로 잰다
+    var cx = d.hx + (d.faceX ? 0 : d.side * d.w * 0.5);
+    var cz = d.hz + (d.faceX ? d.side * d.w * 0.5 : 0);
+    var reach = d.w * 0.5 + 1.6;
+    var near = false;
+    var list = fruits();
+    for (var k = 0; k < list.length; k++) {
+      if (Math.hypot(list[k].pos.x - cx, list[k].pos.z - cz) < reach) { near = true; break; }
+    }
+    if (!near) {
+      [CHILD.pos, MOM.pos, TEACHER.pos].forEach(function (q) {
+        if (q && Math.hypot(q.x - cx, q.z - cz) < reach + 1.2) near = true;
+      });
+    }
+    var want = near ? 1 : 0;
+    d.open += (want - d.open) * Math.min(1, 7 * dt);
+    d.pivot.rotation.y = -d.side * d.open * 1.65;      // 안쪽으로 활짝
+    d.box.disabled = d.open > 0.25;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  *  집 밖 — 서쪽으로 300m 가면 학교가 있다
  * ------------------------------------------------------------------ */
 
@@ -1376,14 +1465,13 @@ var STUDENTS = [];        // 학교 학생들
     var roof = new THREE.Mesh(new THREE.ConeGeometry(7.4, 2.6, 4), mat(0x8a4a3c, 0.9));
     roof.position.set(x, 5.5, z); roof.rotation.y = Math.PI / 4; roof.castShadow = true;
     scene.add(roof);
-    var doorM = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.1, 0.12), mat(0x6b4a34, 0.8));
-    doorM.position.set(x, 1.05, z + (z > -11 ? -4.06 : 4.06));
-    scene.add(doorM);
+    var dz = z + (z > -11 ? -4.06 : 4.06);
+    addDoor(x - 0.6, dz, 1.2, 2.1, 0.12, false, 1, 0x6b4a34, '길가 집 문');
     var win = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.1, 0.1),
       new THREE.MeshStandardMaterial({ color:0xbfe4ff, roughness:0.2, transparent:true, opacity:0.75 }));
     win.position.set(x - 2.4, 2.4, z + (z > -11 ? -4.06 : 4.06));
     scene.add(win);
-    box.extras = [roof, doorM, win];
+    box.extras = [roof, win];
     HOUSES.push(box);
   });
 
@@ -1397,12 +1485,57 @@ var STUDENTS = [];        // 학교 학생들
   }
 })();
 
+/* ---- 엄마의 자동차 (집 밖에 세워져 있다 — 훔쳐 타면 된다) ---- */
+var CAR = {
+  pos: new THREE.Vector3(-19.5, 0, -11),
+  yaw: Math.PI / 2,
+  group: new THREE.Group(),
+  wheels: []
+};
+scene.add(CAR.group);
+
+(function buildCar() {
+  var g = CAR.group;
+  var bodyMat = mat(0xc0392b, 0.35, 0.3);
+  var body = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.9, 2.0), bodyMat);
+  body.position.y = 0.75; body.castShadow = true; g.add(body);
+  var cabin = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.8, 1.8), bodyMat);
+  cabin.position.set(-0.2, 1.55, 0); cabin.castShadow = true; g.add(cabin);
+  var glass = new THREE.MeshStandardMaterial({ color:0x9ec8de, roughness:0.2, transparent:true, opacity:0.8 });
+  [[1.0, 0, 0.1, 1.7], [-1.36, 0, 0.1, 1.7]].forEach(function (w) {
+    var m = new THREE.Mesh(new THREE.BoxGeometry(w[2], 0.62, w[3]), glass);
+    m.position.set(w[0], 1.55, 0); g.add(m);
+  });
+  [-0.92, 0.92].forEach(function (sd) {
+    var side = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.6, 0.08), glass);
+    side.position.set(-0.2, 1.56, sd); g.add(side);
+  });
+  [[1.5, 0.75], [1.5, -0.75], [-1.5, 0.75], [-1.5, -0.75]].forEach(function (w) {
+    var wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.32, 16), mat(0x1c1c1e, 0.85));
+    wheel.rotation.x = Math.PI / 2;
+    wheel.position.set(w[0], 0.45, w[1]);
+    wheel.castShadow = true;
+    g.add(wheel); CAR.wheels.push(wheel);
+  });
+  [0.6, -0.6].forEach(function (sd) {
+    var lamp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 10),
+      new THREE.MeshBasicMaterial({ color:0xfff3c4 }));
+    lamp.position.set(2.18, 0.8, sd); g.add(lamp);
+    var tail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.2, 0.32),
+      new THREE.MeshBasicMaterial({ color:0xd6402f }));
+    tail.position.set(-2.22, 0.85, sd); g.add(tail);
+  });
+  g.position.copy(CAR.pos);
+  g.rotation.y = CAR.yaw;
+})();
+
 /* ---- 학교 ---- */
 (function buildSchool() {
   var X0 = SCHOOL.minX, X1 = SCHOOL.maxX, Z0 = SCHOOL.minZ, Z1 = SCHOOL.maxZ;
   var wallMatS = mat(0xe4d9c4, 0.9);
+  // 학교는 투명하지 않다 — 유리창만 뿌옇게, 건물은 불투명하게
   var glassMat = new THREE.MeshStandardMaterial({
-    color:0xa9d8ef, roughness:0.08, metalness:0.1, transparent:true, opacity:0.42
+    color:0xbcd9e8, roughness:0.35, metalness:0.05, transparent:true, opacity:0.82
   });
 
   solid(X0, X1, 0, 0.2, Z0, Z1, 0xcfc6b4, { name:'학교 바닥' });
@@ -1430,6 +1563,10 @@ var STUDENTS = [];        // 학교 학생들
   solid(X1, X1 + 0.25, 0, 4.4, Z0, Z0 + 6.5, 0, { material:wallMatS, name:'학교 벽' });
   solid(X1, X1 + 0.25, 0, 4.4, Z1 - 6.5, Z1, 0, { material:wallMatS, name:'학교 벽' });
   solid(X1, X1 + 0.25, 3.0, 4.4, Z0 + 6.5, Z1 - 6.5, 0, { material:wallMatS, name:'학교 벽' });
+
+  // 정문 — 몸이 닿으면 열린다
+  addDoor(X1 + 0.12, Z0 + 6.5, 2.4, 3.0, 0.16, true,  1, 0x7a5a3c, '학교 정문');
+  addDoor(X1 + 0.12, Z1 - 6.5, 2.4, 3.0, 0.16, true, -1, 0x7a5a3c, '학교 정문');
 
   // 칠판
   solid(X0 + 0.3, X0 + 0.4, 1.3, 3.3, Z0 + 4, Z1 - 4, 0x2f4436, { name:'칠판' });
@@ -1733,7 +1870,9 @@ var player = {
   launchT: 0,
   inHole: null,
   holeCool: 0,
-  holeIgnore: null
+  holeIgnore: null,
+  inCar: false,
+  carCool: 0
 };
 
 function setCharacter(index) {
@@ -1976,6 +2115,11 @@ addEventListener('keydown', function (e) {
   if (e.code === 'KeyR') restart();
   // 구멍에서 나오기는 누른 순간에 바로 반응한다 (프레임 사이에 놓치지 않도록)
   if (e.code === 'Space' && game.running && player.inHole && player.holeCool <= 0) leaveHole(false);
+  if (e.code === 'Space' && game.running && player.inCar && player.carCool <= 0) {
+    player.inCar = false;
+    player.carCool = 0.8;
+    toast('🚶 차에서 내렸다', '다시 타려면 차에 몸을 대세요');
+  }
 });
 addEventListener('keyup', function (e) { keys[e.code] = false; });
 
@@ -2032,6 +2176,9 @@ function restart() {
   player.hidden = false;
   player.bounceT = 0; player.launchT = 0;
   player.inHole = null; player.holeCool = 0; player.holeIgnore = null;
+  player.inCar = false; player.carCool = 0;
+  CAR.pos.set(-19.5, 0, -11); CAR.yaw = Math.PI / 2;
+  player.mesh.visible = true;
   setCharacter(0);
   caterpillar.pos.set(-3.5, 0, -4.0);
   caterpillar.speed = CAT_SPEED;
@@ -2622,7 +2769,8 @@ function damageFruit(f, dt, cause) {
   shatter(f.pos, f.color, 18);
   if (f.isPlayer) {
     if (mitt.owner === 'player') dropMitt();
-    if (gas) gameOver('💨 방귀에 절었다!', '아이의 방귀를 너무 오래 마셔 ' + f.name + '이(가) 쓰러졌습니다.');
+    if (cause === 'chase') gameOver('🏃 아이에게 따라잡혔다!', '차를 쫓아온 아이에게 ' + f.name + '이(가) 붙잡혔습니다.');
+    else if (gas) gameOver('💨 방귀에 절었다!', '아이의 방귀를 너무 오래 마셔 ' + f.name + '이(가) 쓰러졌습니다.');
     else gameOver('🔴 레이저에 녹았다!', '화난 아이의 레이저를 10초 맞아 ' + f.name + '이(가) 사라졌습니다.');
   } else {
     if (mitt.owner === o) dropMitt();
@@ -2818,6 +2966,16 @@ function updateChild(dt) {
 
   document.getElementById('lapCount').textContent = lapRiders().length;
 
+  /* --- 과일이 차를 훔쳐 타면 아이가 쫓아온다 --- */
+  if (player.inCar && CHILD.state !== 'chase') {
+    CHILD.chaseBack = CHILD.state;
+    CHILD.state = 'chase';
+    CHILD.beams.forEach(function (b) { b.visible = false; });
+    setSeated(false);
+    toast('🏃 아이가 차를 쫓아온다!', '보통보다 2.6배로 달려옵니다');
+  }
+  if (CHILD.state === 'chase') { updateChase(dt); return; }
+
   if (CHILD.state === 'sleep') {
     var riders = lapRiders();
     if (riders.length >= WAKE_COUNT) wakeChild(riders.length);
@@ -2827,7 +2985,10 @@ function updateChild(dt) {
   CHILD.timer -= dt;
 
   /* --- 등교 --- */
-  if (CHILD.state === 'school') { updateSchoolTrip(dt); return; }
+  if (CHILD.state === 'chase') {
+    cs.innerHTML = '🏃 <b>아이가 차를 쫓아온다</b>';
+    cs.style.color = '#ff7a4a';
+  } else if (CHILD.state === 'school') { updateSchoolTrip(dt); return; }
 
   /* --- 안방 화풀이 --- */
   if (CHILD.state === 'tantrum') {
@@ -3035,9 +3196,20 @@ function updatePlayer(dt) {
   var mlen = Math.hypot(mx, mz);
   if (mlen > 1) { mx /= mlen; mz /= mlen; }
 
-  // 집 밖 길에서는 학교까지 멀어서 훨씬 빨리 달린다
+  // 집 밖 길에서는 학교까지 멀어서 훨씬 빨리 달린다. 자동차를 타면 5배.
   var onRoad = player.pos.x < -14.2;
-  var speed = def.speed * (player.hidden ? 0.55 : 1) * (onRoad ? 2.6 : 1);
+  player.carCool -= dt;
+  var speed = def.speed * (player.hidden ? 0.55 : 1) *
+              (player.inCar ? 5 : (onRoad ? 2.6 : 1));
+
+  // 세워진 차에 닿으면 훔쳐 탄다
+  if (!player.inCar && player.carCool <= 0 && !player.inHole &&
+      Math.hypot(player.pos.x - CAR.pos.x, player.pos.z - CAR.pos.z) < 2.6) {
+    player.inCar = true;
+    player.carCool = 0.6;
+    player.vel.set(0, 0, 0);
+    toast('🚗 엄마 차를 훔쳤다!', '5배로 달립니다 — Space 로 내립니다');
+  }
   var wishX = mx * speed;
   var wishZ = mz * speed;
 
@@ -3053,7 +3225,7 @@ function updatePlayer(dt) {
   player.vel.x += (wishX - player.vel.x) * Math.min(1, accel * dt);
   player.vel.z += (wishZ - player.vel.z) * Math.min(1, accel * dt);
 
-  if (keys.Space && player.grounded) {
+  if (keys.Space && player.grounded && !player.inCar) {
     player.vel.y = def.jump;
     player.grounded = false;
   }
@@ -3072,6 +3244,17 @@ function updatePlayer(dt) {
   }
   player.bounceT -= dt;
   player.launchT -= dt;
+
+  if (player.inCar) {
+    if (player.pos.x > -15.2) player.pos.x = -15.2;      // 차는 집 안으로 못 들어간다
+    CAR.pos.copy(player.pos);
+    CAR.yaw = player.yaw;
+    var roll = Math.hypot(player.vel.x, player.vel.z) * dt * 2.2;
+    CAR.wheels.forEach(function (w) { w.rotation.y -= roll; });
+  }
+  CAR.group.position.copy(CAR.pos);
+  CAR.group.rotation.y = CAR.yaw - Math.PI / 2;           // 차는 앞이 +x 방향
+  player.mesh.visible = !player.inCar;
 
   player.mesh.position.set(player.pos.x, player.pos.y + r, player.pos.z);
   player.mesh.rotation.y = player.yaw;
@@ -3459,7 +3642,8 @@ function cameraBlocked(x, y, z) {
 
 function updateCamera(dt) {
   var def = charDef();
-  var dist = 0.75 + def.r * 5.0;
+  // 차를 탔을 때는 차가 다 보이도록 뒤로 물러난다 (차 안에 갇히지 않게)
+  var dist = player.inCar ? 7.0 : 0.75 + def.r * 5.0;
   var want = new THREE.Vector3();
   var eye = new THREE.Vector3();
   var lookY;
@@ -3475,14 +3659,16 @@ function updateCamera(dt) {
     );
     lookY = player.pos.y + def.r;
   } else {
-    eye.set(player.pos.x, player.pos.y + def.r * 1.6, player.pos.z);
+    var eyeH = player.inCar ? 1.5 : def.r * 1.6;
+    var camH = player.inCar ? 2.9 : 0.28 + def.r * 3.0;
+    eye.set(player.pos.x, player.pos.y + eyeH, player.pos.z);
     want.set(
       player.pos.x - Math.sin(camYaw) * dist * Math.cos(camPitch),
-      player.pos.y + 0.28 + def.r * 3.0 + Math.sin(camPitch) * dist,
+      player.pos.y + camH + Math.sin(camPitch) * dist,
       player.pos.z - Math.cos(camYaw) * dist * Math.cos(camPitch)
     );
     if (want.y < 0.15) want.y = 0.15;
-    lookY = player.pos.y + def.r * 1.6;
+    lookY = player.pos.y + eyeH;
   }
 
   // 캐릭터와 카메라 사이에 벽이나 가구가 있으면 그 앞까지 당겨온다
@@ -3528,7 +3714,9 @@ function updateHUD() {
     var toSchool = Math.max(0, player.pos.x - (SCHOOL.maxX + 2));
     sd.style.display = '';
     sd.innerHTML = (toSchool > 1 ? '🏫 학교까지 <b>' + Math.round(toSchool) + 'm</b>' : '🏫 <b>학교 도착</b>') +
-                   '<br><span style="opacity:.65">🏃 길에서는 2.6배로 달립니다</span>';
+                   '<br><span style="opacity:.65">' +
+                   (player.inCar ? '🚗 <b>엄마 차</b> — 5배 (Space 로 내리기)' : '🏃 길에서는 2.6배로 달립니다') +
+                   '</span>';
   } else {
     sd.style.display = 'none';
   }
@@ -3540,7 +3728,10 @@ function updateHUD() {
   tod.style.color = night.on ? '#8fa8e0' : '#ffd88a';
 
   var cs = document.getElementById('childState');
-  if (CHILD.state === 'school') {
+  if (CHILD.state === 'chase') {
+    cs.innerHTML = '🏃 <b>아이가 차를 쫓아온다</b>';
+    cs.style.color = '#ff7a4a';
+  } else if (CHILD.state === 'school') {
     cs.innerHTML = '🎒 <b>학교에 갔다</b>';
     cs.style.color = '#8fd0ff';
   } else if (CHILD.state === 'fight') {
@@ -3592,6 +3783,7 @@ function loop(now) {
     updateChild(dt);
     updateMom(dt);
     updateTeacher(dt);
+    updateDoors(dt);
     updateFart(dt);
     updateHpBar();
     updateFruitBars();
@@ -3645,6 +3837,7 @@ window.FOOD_GAME = {
   night: night, brokenWalls: brokenWalls, wallPieces: wallPieces, punchWallHole: punchWallHole,
   repairs: repairs, cutBoxForTest: cutBox,
   HOUSES: HOUSES, STUDENTS: STUDENTS, TEACHER: TEACHER, SCHOOL: SCHOOL,
+  DOORS: DOORS, CAR: CAR,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
