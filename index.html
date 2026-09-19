@@ -136,7 +136,8 @@
       가끔 엄마가 <b>스파이더맨처럼 날아와 아이를 낚아채고</b> 주먹다짐을 합니다.
       밀린 몸이 벽에 부딪치면 <b>벽에 진짜 구멍</b>이 뚫려 건너편이 보입니다.<br>
       <b>3분마다 낮과 밤</b>이 바뀝니다.<br>
-      벽에 뚫린 구멍으로 <b>집 밖</b>에 나갈 수 있습니다. 서쪽 길을 <b>300m</b> 걸어가면 학교가 나오는데,
+      안방 서쪽 벽의 <b>개구멍</b>으로 언제든 집 밖에 나갈 수 있습니다(벽에 뚫린 구멍으로도 됩니다).
+      길에서는 <b>2.6배로 달려서</b> 서쪽으로 <b>300m</b> 가면 학교가 나오는데,
       안경 쓴 할머니 선생님이 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 던져
       <b>길가 집을 한 채씩</b> 무너뜨립니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
@@ -714,15 +715,15 @@ holeMarker(2.0, 0, -6.85, 0.55);
  *  2층 다락 — 냉장고 앞 트램펄린으로 올라간다 (애벌레는 못 올라온다)
  * ------------------------------------------------------------------ */
 
-var LOFT = { minX:0.5, maxX:5.0, minZ:-5.0, maxZ:-0.5, y:3.2 };
+var LOFT = { minX:0.5, maxX:5.0, minZ:-5.0, maxZ:-0.5, y:3.7 };
 
 // 바닥 (애벌레는 타고 오르지 못한다)
-solid(LOFT.minX, LOFT.maxX, 3.0, LOFT.y, LOFT.minZ, LOFT.maxZ, 0xc8a273,
+solid(LOFT.minX, LOFT.maxX, LOFT.y - 0.2, LOFT.y, LOFT.minZ, LOFT.maxZ, 0xc8a273,
       { name:'2층 바닥', noCat:true });
 // 위층 벽
 var loftWall = mat(0xeee5d6, 0.95);
-solid(5.0, 5.2, 3.0, 5.6, -5.0, -0.5, 0, { material:loftWall, name:'벽' });
-solid(0.5, 5.2, 3.0, 5.6, -5.2, -5.0, 0, { material:loftWall, name:'벽' });
+solid(5.0, 5.2, 3.4, 6.1, -5.0, -0.5, 0, { material:loftWall, name:'벽' });
+solid(0.5, 5.2, 3.4, 6.1, -5.2, -5.0, 0, { material:loftWall, name:'벽' });
 // 난간 (한쪽은 비워 둬서 뛰어내릴 수 있다)
 solid(0.5, 0.62, LOFT.y, LOFT.y + 0.42, -5.0, -1.6, 0xa87f52, { name:'2층 난간', noCat:true });
 solid(0.5, 5.0, LOFT.y, LOFT.y + 0.42, -0.62, -0.5, 0xa87f52, { name:'2층 난간', noCat:true });
@@ -730,10 +731,10 @@ solid(0.5, 5.0, LOFT.y, LOFT.y + 0.42, -0.62, -0.5, 0xa87f52, { name:'2층 난�
 // 창문
 var loftWin = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1),
   new THREE.MeshBasicMaterial({ color:0xbfe4ff }));
-loftWin.position.set(5.19, 4.2, -2.6); loftWin.rotation.y = -Math.PI / 2;
+loftWin.position.set(5.19, 4.7, -2.6); loftWin.rotation.y = -Math.PI / 2;
 scene.add(loftWin);
 var loftFrame = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.24, 1.64), mat(0x8a6a45, 0.9));
-loftFrame.position.set(5.16, 4.2, -2.6); scene.add(loftFrame);
+loftFrame.position.set(5.16, 4.7, -2.6); scene.add(loftFrame);
 
 // 작은 침대
 solid(3.6, 4.9, LOFT.y, LOFT.y + 0.28, -4.9, -2.7, 0xb6714f, { name:'2층 침대' });
@@ -835,6 +836,51 @@ solid(-13.5, -11.0, 0.72, 0.8, -9.6, -8.0, 0xa8794f, { name:'안방 책상' });
 solid(-7.4, -6.3, 0, 2.3, -15.6, -13.6, 0x6d5140, { name:'옷장' });
 solid(-7.45, -7.4, 0.9, 1.2, -15.2, -14.0, 0xc9b28a, { noCollide:true });
 
+// 바깥으로 통하는 개구멍 — 학교에 가려면 여기로 나간다 (항상 열려 있다)
+holes.push({ x:-13.45, z:-7.0, y:0, r:0.55, fit:9, name:'바깥으로 나가는 개구멍',
+             passage:{ x:-15.9, y:0, z:-7.0 } });
+holeMarker(-13.45, 0, -7.0, 0.55);
+holes.push({ x:-15.9, z:-7.0, y:0, r:0.55, fit:9, name:'집으로 들어가는 개구멍',
+             passage:{ x:-13.1, y:0, z:-7.0 } });
+holeMarker(-15.9, 0, -7.0, 0.55);
+// 벽에 뚫린 자리를 실제로 비워 둔다
+(function openPetDoor() {
+  var i = boxes.length;
+  while (i--) {
+    var b = boxes[i];
+    if (b.name === '벽' && b.min.x < -13.9 && b.max.x > -14.05 &&
+        b.min.z < -7.0 && b.max.z > -7.0) {
+      b.disabled = true;
+      if (b.mesh) b.mesh.visible = false;
+      // 구멍 둘레만 남긴다
+      var m = b.mesh ? b.mesh.material : bedWall;
+      solid(b.min.x, b.max.x, 0, 3.2, b.min.z, -7.75, 0, { material:m, name:'벽' });
+      solid(b.min.x, b.max.x, 0, 3.2, -6.25, b.max.z, 0, { material:m, name:'벽' });
+      solid(b.min.x, b.max.x, 1.1, 3.2, -7.75, -6.25, 0, { material:m, name:'벽' });
+      break;
+    }
+  }
+})();
+var petArch = new THREE.Mesh(new THREE.BoxGeometry(0.26, 1.1, 1.5),
+  new THREE.MeshBasicMaterial({ color:0x120f0c }));
+petArch.position.set(-14.0, 0.55, -7.0);
+scene.add(petArch);
+
+// 학교 방향 이정표
+(function signpost() {
+  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 8), mat(0x7a5c3c, 0.9));
+  post.position.set(-17.5, 1.1, -7.6); post.castShadow = true; scene.add(post);
+  var c = document.createElement('canvas');
+  c.width = 256; c.height = 96;
+  var g2 = c.getContext('2d');
+  g2.fillStyle = '#3f6b4a'; g2.fillRect(0, 0, 256, 96);
+  g2.fillStyle = '#f2f6ee'; g2.font = 'bold 44px sans-serif'; g2.textAlign = 'center';
+  g2.fillText('← 학교 300m', 128, 62);
+  var board = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.75, 0.08),
+    new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c) }));
+  board.position.set(-17.5, 2.0, -7.6); scene.add(board);
+})();
+
 // CCTV 카메라 (안방 천장 구석)
 var camBody = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.3, 12), mat(0x30343c, 0.5, 0.4));
 camBody.position.set(-6.9, 2.75, -7.0); camBody.rotation.set(0.9, 0.7, 0); scene.add(camBody);
@@ -854,7 +900,7 @@ cctvCam.position.set(-7.35, 2.55, -7.55);   // 카메라 케이스 앞쪽
 cctvCam.lookAt(-10.6, 0.6, -12.6);
 
 (function buildCctvTv() {
-  var x = 2.4, y = 3.92, z = -4.93;
+  var x = 2.4, y = 4.42, z = -4.93;
   // TV 몸체
   var bezel = new THREE.Mesh(new THREE.BoxGeometry(1.95, 1.22, 0.12), mat(0x1b1e24, 0.5));
   bezel.position.set(x, y, z - 0.03); scene.add(bezel);
@@ -881,7 +927,7 @@ cctvCam.lookAt(-10.6, 0.6, -12.6);
   label.position.set(x, y - 0.74, z + 0.06); scene.add(label);
 })();
 
-function cctvOn() { return player.pos.y > 2.8; }   // 2층에 올라가야 켜진다
+function cctvOn() { return player.pos.y > 3.3; }   // 2층에 올라가야 켜진다
 
 /* ------------------------------------------------------------------ *
  *  엄마 — 2층을 돌아다니며 가구를 모두 부순다
@@ -1477,7 +1523,7 @@ function trampoline(x, z, apexY, landX, landZ, label) {
 trampoline(-0.35, -2.85, 1.15, -0.35, -3.65, '서랍');      // 서랍 앞 -> 열린 서랍 안
 trampoline( 1.95,  0.45, 1.30,  0.60,  0.50, '식탁');      // 식탁 옆 -> 식탁 위
 trampoline(-1.00, 11.30, 1.25, -1.00, 13.00, '마당 책상');  // 마당 책상 앞 -> 책상 위
-trampoline( 3.85, -2.75, 3.62,  3.20, -2.20, '2층');          // 냉장고 앞 -> 2층 다락
+trampoline( 3.85, -2.75, 4.15,  3.20, -2.20, '2층');          // 냉장고 앞 -> 2층 다락
 
 // 트램펄린 발사: 목표 최고점까지 솟으면서 착지 지점 위로 날아가는 속도를 계산
 function launch(pos, vel, b) {
@@ -1642,7 +1688,7 @@ var NOT_CLIMBABLE = { '벽':1, '문틀':1, '울타리':1 };
 // 애벌레가 들어올 수 없는 곳: 거실, 그리고 열린 냉장고 안
 function safeFromCaterpillar(pos) {
   if (pos.z < -5.0) return true;
-  if (pos.y > 2.9) return true;                    // 2층
+  if (pos.y > 3.4) return true;                    // 2층
 
   return pos.x > FRIDGE_IN.minX && pos.x < FRIDGE_IN.maxX &&
          pos.z > FRIDGE_IN.minZ && pos.z < FRIDGE_IN.maxZ &&
@@ -2984,7 +3030,9 @@ function updatePlayer(dt) {
   var mlen = Math.hypot(mx, mz);
   if (mlen > 1) { mx /= mlen; mz /= mlen; }
 
-  var speed = def.speed * (player.hidden ? 0.55 : 1);
+  // 집 밖 길에서는 학교까지 멀어서 훨씬 빨리 달린다
+  var onRoad = player.pos.x < -14.2;
+  var speed = def.speed * (player.hidden ? 0.55 : 1) * (onRoad ? 2.6 : 1);
   var wishX = mx * speed;
   var wishZ = mz * speed;
 
@@ -3474,7 +3522,8 @@ function updateHUD() {
   if (player.pos.x < -14) {
     var toSchool = Math.max(0, player.pos.x - (SCHOOL.maxX + 2));
     sd.style.display = '';
-    sd.innerHTML = toSchool > 1 ? '🏫 학교까지 <b>' + Math.round(toSchool) + 'm</b>' : '🏫 <b>학교 도착</b>';
+    sd.innerHTML = (toSchool > 1 ? '🏫 학교까지 <b>' + Math.round(toSchool) + 'm</b>' : '🏫 <b>학교 도착</b>') +
+                   '<br><span style="opacity:.65">🏃 길에서는 2.6배로 달립니다</span>';
   } else {
     sd.style.display = 'none';
   }
