@@ -127,6 +127,10 @@
       레이저가 닿는 물건은 두 동강 나고, 과일은 <b>총 10초</b>를 맞으면 죽습니다.<br>
       냉장고 앞 트램펄린을 타면 <b>2층 다락</b>으로 올라갑니다. 애벌레는 2층에도, 열린 냉장고 안에도 못 들어옵니다.<br>
       다른 과일들은 눈치가 없어서 자는 아이 허벅지 위에 겁 없이 기어오릅니다.<br>
+      아이가 깨면 먼저 <b>안방</b>으로 달려가 침대·램프·책·책상을 손으로 박살냅니다.
+      사람이 부순 물건은 <b>조각조각 재</b>가 되어 바닥에 남습니다.
+      그 난동은 <b>2층 CCTV 화면</b>으로 볼 수 있습니다. 화풀이가 끝나야 레이저가 시작됩니다.<br>
+      2층에는 <b>엄마</b>가 돌아다니며 그곳 가구를 모두 부숩니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
     </p>
@@ -510,7 +514,9 @@ scene.add(livingFloor);
 
 var livingWall = mat(0xe3d9ca, 0.95);
 solid(-6.2,  6.2, 0, 3.2, -16.7, -16.5, 0, { material:livingWall, name:'벽' });
-solid(-6.2, -6.0, 0, 3.2, -16.7,  -6.0, 0, { material:livingWall, name:'벽' });
+solid(-6.2, -6.0, 0, 3.2, -16.7, -12.7, 0, { material:livingWall, name:'벽' });
+solid(-6.2, -6.0, 0, 3.2, -11.1,  -6.0, 0, { material:livingWall, name:'벽' });
+solid(-6.2, -6.0, 2.5, 3.2, -12.7, -11.1, 0, { material:livingWall, name:'문틀' });
 solid( 6.0,  6.2, 0, 3.2, -16.7,  -6.0, 0, { material:livingWall, name:'벽' });
 solid(-6.2, -2.9, 0, 3.2, -6.2, -6.0, 0, { material:livingWall, name:'벽' });
 solid(-1.7,  6.2, 0, 3.2, -6.2, -6.0, 0, { material:livingWall, name:'벽' });
@@ -749,6 +755,211 @@ holes.push({ x:1.15, z:-1.5, y:LOFT.y, r:0.55, fit:9, name:'2층 계단 구멍',
              passage:{ x:1.5, y:0, z:-1.9 } });
 holeMarker(1.15, LOFT.y, -1.5, 0.55);
 
+/* ------------------------------------------------------------------ *
+ *  안방 — 거실 왼쪽 문으로 이어진다. 화난 아이가 여기서 화풀이를 한다.
+ * ------------------------------------------------------------------ */
+
+var BEDROOM = { minX:-13.9, maxX:-6.2, minZ:-16.5, maxZ:-6.0 };
+
+var bedFloor = new THREE.Mesh(
+  new THREE.PlaneGeometry(7.7, 10.5),
+  new THREE.MeshStandardMaterial({ color:0x9d7f63, roughness:0.9 })
+);
+bedFloor.rotation.x = -Math.PI / 2;
+bedFloor.position.set(-10.05, 0, -11.25);
+bedFloor.receiveShadow = true;
+scene.add(bedFloor);
+
+var bedWall = mat(0xd9cfe0, 0.95);
+solid(-14.1, -13.9, 0, 3.2, -16.7,  -6.0, 0, { material:bedWall, name:'벽' });
+solid(-14.1,  -6.0, 0, 3.2, -16.7, -16.5, 0, { material:bedWall, name:'벽' });
+solid(-14.1,  -6.0, 0, 3.2,  -6.2,  -6.0, 0, { material:bedWall, name:'벽' });
+
+// 안방 러그
+var bedRug = new THREE.Mesh(new THREE.CircleGeometry(1.8, 30), mat(0x7a6a8c, 0.95));
+bedRug.rotation.x = -Math.PI / 2; bedRug.position.set(-10.0, 0.012, -10.2);
+bedRug.receiveShadow = true; scene.add(bedRug);
+
+/* ---- 아이가 부술 물건들 ---- */
+
+// 큰 침대
+solid(-13.6, -10.6, 0,    0.55, -15.9, -12.4, 0x7d5a44, { name:'안방 침대' });
+solid(-13.6, -10.6, 0.55, 0.78, -15.9, -12.8, 0xe8e0d4, { name:'안방 이불' });
+solid(-13.4, -12.2, 0.55, 0.82, -15.8, -15.2, 0xffffff, { name:'안방 베개' });
+solid(-11.9, -10.8, 0.55, 0.82, -15.8, -15.2, 0xffffff, { name:'안방 베개' });
+
+// 협탁 + 램프
+solid(-10.3, -9.5, 0, 0.62, -15.9, -15.1, 0x6b4a34, { name:'협탁' });
+solid(-10.05, -9.75, 0.62, 1.05, -15.65, -15.35, 0x8b7a5c, { name:'램프 기둥' });
+var lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.38, 0.35, 16), mat(0xf6e3a8, 0.7));
+lampShade.position.set(-9.9, 1.22, -15.5); lampShade.castShadow = true; scene.add(lampShade);
+boxes.push({ min:{x:-10.28,y:1.05,z:-15.88}, max:{x:-9.52,y:1.4,z:-15.12}, tramp:false,
+             name:'램프', mesh:lampShade });
+var lampLight = new THREE.PointLight(0xffe6a8, 0.5, 5);
+lampLight.position.set(-9.9, 1.2, -15.5);
+scene.add(lampLight);
+
+// 책상 (아이가 주먹으로 구멍을 낸다)
+solid(-13.5, -11.0, 0.72, 0.8, -9.6, -8.0, 0xa8794f, { name:'안방 책상' });
+[[-13.38,-9.48],[-11.12,-9.48],[-13.38,-8.12],[-11.12,-8.12]].forEach(function (q) {
+  solid(q[0]-0.07, q[0]+0.07, 0, 0.72, q[1]-0.07, q[1]+0.07, 0x8a6340, { name:'안방 책상 다리' });
+});
+
+// 책 더미
+[[-12.9,-8.9,0xc0503f],[-12.6,-8.6,0x3f6ec0],[-12.3,-8.95,0x46a05a]].forEach(function (q, i) {
+  solid(q[0]-0.22, q[0]+0.22, 0.8 + i * 0.001, 0.92, q[1]-0.16, q[1]+0.16, q[2], { name:'책' });
+});
+
+// 옷장
+solid(-7.4, -6.3, 0, 2.3, -15.6, -13.6, 0x6d5140, { name:'옷장' });
+solid(-7.45, -7.4, 0.9, 1.2, -15.2, -14.0, 0xc9b28a, { noCollide:true });
+
+// CCTV 카메라 (안방 천장 구석)
+var camBody = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.3, 12), mat(0x30343c, 0.5, 0.4));
+camBody.position.set(-6.9, 2.75, -7.0); camBody.rotation.set(0.9, 0.7, 0); scene.add(camBody);
+var camLens = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 10), mat(0x101318, 0.2, 0.8));
+camLens.position.set(-7.02, 2.62, -7.18); scene.add(camLens);
+var camRec = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6),
+  new THREE.MeshBasicMaterial({ color:0xff3b30 }));
+camRec.position.set(-6.82, 2.68, -7.12); scene.add(camRec);
+
+/* ------------------------------------------------------------------ *
+ *  CCTV — 안방을 비추는 화면. TV 처럼 생겼고 2층 벽에 걸려 있다.
+ * ------------------------------------------------------------------ */
+
+var cctvRT = new THREE.WebGLRenderTarget(448, 320);
+var cctvCam = new THREE.PerspectiveCamera(66, 448 / 320, 0.1, 40);
+cctvCam.position.set(-7.35, 2.55, -7.55);   // 카메라 케이스 앞쪽
+cctvCam.lookAt(-10.6, 0.6, -12.6);
+
+(function buildCctvTv() {
+  var x = 2.4, y = 3.92, z = -4.93;
+  // TV 몸체
+  var bezel = new THREE.Mesh(new THREE.BoxGeometry(1.95, 1.22, 0.12), mat(0x1b1e24, 0.5));
+  bezel.position.set(x, y, z - 0.03); scene.add(bezel);
+  // 화면
+  var screen = new THREE.Mesh(new THREE.PlaneGeometry(1.76, 1.0),
+    new THREE.MeshBasicMaterial({ map:cctvRT.texture }));
+  screen.position.set(x, y, z + 0.04); scene.add(screen);
+  // 받침 + 녹화 표시등
+  var stand = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.3), mat(0x2a2e36, 0.6));
+  stand.position.set(x, y - 0.68, z + 0.05); scene.add(stand);
+  var rec = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6),
+    new THREE.MeshBasicMaterial({ color:0xff3b30 }));
+  rec.position.set(x + 0.85, y + 0.52, z + 0.05); scene.add(rec);
+  window.__cctvRec = rec;
+  // 'CCTV 안방' 라벨
+  var c = document.createElement('canvas');
+  c.width = 256; c.height = 64;
+  var g2 = c.getContext('2d');
+  g2.fillStyle = '#1b1e24'; g2.fillRect(0, 0, 256, 64);
+  g2.fillStyle = '#9fb4c8'; g2.font = 'bold 34px sans-serif'; g2.textAlign = 'center';
+  g2.fillText('CCTV · 안방', 128, 44);
+  var label = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.28),
+    new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c) }));
+  label.position.set(x, y - 0.74, z + 0.06); scene.add(label);
+})();
+
+function cctvOn() { return player.pos.y > 2.8; }   // 2층에 올라가야 켜진다
+
+/* ------------------------------------------------------------------ *
+ *  엄마 — 2층을 돌아다니며 가구를 모두 부순다
+ * ------------------------------------------------------------------ */
+
+var LOFT_FURNITURE = ['2층 침대', '2층 이불', '2층 베개', '장난감 상자', '2층 난간'];
+
+var MOM = {
+  pos: new THREE.Vector3(2.0, 3.2, -1.6),
+  yaw: 0,
+  target: null,
+  smashT: 0,
+  restT: 0,
+  group: new THREE.Group()
+};
+scene.add(MOM.group);
+
+(function buildMom() {
+  var robe = mat(0x8a5f8f, 0.85);
+  var g = MOM.group;
+  [-0.24, 0.24].forEach(function (o) {
+    var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.14, 1.05, 12), robe);
+    leg.position.set(o, 0.53, 0); leg.castShadow = true; g.add(leg);
+    var foot = new THREE.Mesh(new THREE.SphereGeometry(0.18, 12, 10), mat(0x3b3038, 0.7));
+    foot.scale.set(0.9, 0.45, 1.3); foot.position.set(o, 0.09, -0.09); g.add(foot);
+  });
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.86, 1.02, 0.5), robe);
+  torso.position.set(0, 1.56, 0); torso.castShadow = true; g.add(torso);
+  MOM.arms = [];
+  [-0.55, 0.55].forEach(function (o) {
+    var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.11, 0.9, 10), robe);
+    arm.geometry.translate(0, -0.45, 0);        // 어깨를 기준으로 돌린다
+    arm.position.set(o, 2.0, 0.04); arm.castShadow = true;
+    g.add(arm); MOM.arms.push(arm);
+    var hand = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), mat(0xf3c9a4, 0.8));
+    hand.position.set(0, -0.92, 0); arm.add(hand);
+  });
+  var head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 20, 16), mat(0xf3c9a4, 0.8));
+  head.position.set(0, 2.42, 0); head.castShadow = true; g.add(head);
+  var hair = new THREE.Mesh(new THREE.SphereGeometry(0.43, 20, 16, 0, Math.PI * 2, 0, 1.9),
+    mat(0x2b1d16, 0.9));
+  hair.position.set(0, 2.44, -0.03); g.add(hair);
+  [-1, 1].forEach(function (sd) {
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), mat(0x161218, 0.4));
+    eye.position.set(sd * 0.15, 2.45, 0.37); g.add(eye);
+    var brow = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.045, 0.04), mat(0x2b1d16, 0.7));
+    brow.position.set(sd * 0.16, 2.58, 0.36); brow.rotation.z = sd * 0.4; g.add(brow);
+  });
+  var mouth = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.04), mat(0x7a3f3a, 0.6));
+  mouth.position.set(0, 2.25, 0.38); g.add(mouth);
+})();
+
+function updateMom(dt) {
+  MOM.restT -= dt;
+
+  if (!MOM.target || MOM.target.cut) {
+    var list = smashablesIn(LOFT_FURNITURE);
+    var best = null, bestD = Infinity;
+    list.forEach(function (b) {
+      var d = Math.hypot((b.min.x + b.max.x) / 2 - MOM.pos.x,
+                         (b.min.z + b.max.z) / 2 - MOM.pos.z);
+      if (d < bestD) { bestD = d; best = b; }
+    });
+    MOM.target = best;
+    MOM.smashT = 0;
+  }
+
+  var swing = 0;
+  if (MOM.target && MOM.restT <= 0) {
+    var b = MOM.target;
+    var tx = (b.min.x + b.max.x) / 2, tz = (b.min.z + b.max.z) / 2;
+    var d = walkPerson(MOM, tx, tz + 0.8, 1.9, dt);
+    if (d < 1.2) {
+      MOM.smashT += dt;
+      swing = Math.min(1, MOM.smashT / 0.7);
+      if (MOM.smashT > 0.7) {
+        smashBox(b, '엄마');
+        MOM.target = null;
+        MOM.smashT = 0;
+        MOM.restT = 1.6;
+      }
+    }
+  } else {
+    // 부술 게 없으면 2층을 어슬렁거린다
+    walkPerson(MOM, 2.7 + Math.sin(game.time * 0.5) * 1.8,
+               -2.7 + Math.cos(game.time * 0.63) * 1.7, 1.3, dt);
+  }
+
+  MOM.pos.x = Math.max(0.9, Math.min(4.6, MOM.pos.x));
+  MOM.pos.z = Math.max(-4.6, Math.min(-0.9, MOM.pos.z));
+  MOM.pos.y = LOFT.y;
+
+  MOM.group.position.copy(MOM.pos);
+  MOM.group.position.y += Math.abs(Math.sin(game.time * 5)) * 0.05;
+  MOM.group.rotation.y = MOM.yaw;
+  // 부술 때 팔을 번쩍 들었다 내린다
+  MOM.arms.forEach(function (a) { a.rotation.x = -swing * 2.4; });
+}
+
 /* ---- 트램펄린 4개 ---- */
 // 트램펄린: 최고점(apexY)까지 솟구치면서, 그 시점에 착지 지점(landX, landZ) 위에 오도록
 // 수평 속도까지 함께 준다 -> 밟으면 "자연스럽게" 가구 위로 올라간다.
@@ -903,8 +1114,8 @@ function moveAndCollide(p, r, h, vel, dt, ghost) {
 // 실내/마당 경계 (벽 밖으로 못 나가게 안전망)
 function clampWorld(p) {
   var door = p.x > -2.88 && p.x < -1.72;      // 주방 <-> 거실 문
-  if (p.z < -5.5) {                     // 거실
-    p.x = Math.max(-5.85, Math.min(5.85, p.x));
+  if (p.z < -5.5) {                     // 거실 + 안방
+    p.x = Math.max(p.x < -6.1 ? -13.75 : -5.85, Math.min(5.85, p.x));
     p.z = Math.max(-16.35, Math.min(door ? -4.95 : -6.15, p.z));
   } else if (p.z < 5.0) {               // 주방
     p.x = Math.max(-4.9, Math.min(4.9, p.x));
@@ -1079,7 +1290,7 @@ function spawnFriends() {
 function region(z) { return z < -5.5 ? 2 : (z < 5 ? 0 : 1); }
 
 function outOfBounds(x, z) {
-  if (z < -5.5) return x < -5.8 || x > 5.8 || z < -16.3 || z > -6.2;
+  if (z < -5.5) return x < -13.7 || x > 5.8 || z < -16.3 || z > -6.2;
   if (z < 5) return x < -4.8 || x > 4.8 || z < -4.8;
   return x < -8.6 || x > 8.6 || z > 17.5;
 }
@@ -1267,6 +1478,9 @@ function restart() {
 
   mitt.owner = null; mitt.cool = 0; mitt.vy = 0; mitt.pos.copy(MITT_HOME);
   CHILD.state = 'sleep'; CHILD.timer = 0;
+  CHILD.smashTarget = null; CHILD.smashT = 0;
+  MOM.pos.set(2.0, LOFT.y, -1.6); MOM.target = null; MOM.smashT = 0; MOM.restT = 0;
+  CHILD.stand.rotation.z = 0;
   CHILD.pos.set(SOFA_SPOT.x, 0, SOFA_SPOT.z);
   CHILD.cutTarget = null; CHILD.cutT = 0;
   CHILD.beams.forEach(function (b) { b.visible = false; });
@@ -1275,6 +1489,12 @@ function restart() {
   fart.t = 0; fart.room = null; fart.next = 10 + Math.random() * 12;
   fart.mesh.visible = false;
   while (shards.length) { scene.remove(shards.pop().mesh); }
+  while (ashes.length) { scene.remove(ashes.pop()); }
+  boxes.forEach(function (b) {
+    if (b.cut) { b.cut = false; b.disabled = false; if (b.mesh) b.mesh.visible = true; }
+  });
+  cutHalves.forEach(function (m) { scene.remove(m); });
+  cutHalves.length = 0;
   for (var i = 0; i < caterpillar.trail.length; i++) caterpillar.trail[i].copy(caterpillar.pos);
   spawnFriends();
   camYaw = 0; camPitch = 0.28;
@@ -1571,8 +1791,12 @@ function updateShards(dt) {
 var LASER_KILL = 10;      // 레이저를 총 10초 맞으면 죽는다
 var ANGRY_TIME = 30;      // 아이는 30초 동안 레이저를 쏜다
 var WAKE_COUNT = 2;       // 허벅지 위에 2개가 올라가면 깨어난다
-var DOOR = { x:-2.3, z:-5.5 };
+var DOOR = { x:-2.3, z:-5.5 };                 // 주방 <-> 거실
+var BED_DOOR = { x:-6.1, z:-11.9 };            // 거실 <-> 안방
 var SOFA_SPOT = { x:0, z:-12.2 };
+var TANTRUM_TIME = 14;                         // 안방에서 화풀이하는 시간
+var TANTRUM_TARGETS = ['안방 침대', '안방 이불', '안방 베개', '램프', '램프 기둥',
+                       '협탁', '안방 책상', '책', '옷장'];
 
 function onLap(pos, r) {
   var L = CHILD.lap;
@@ -1635,6 +1859,7 @@ function laserCast(ox, oy, oz, dx, dy, dz, maxD) {
 }
 
 var NO_CUT = { '벽':1, '문틀':1, '울타리':1 };
+var cutHalves = [];
 
 // 레이저에 오래 닿은 물건은 두 동강이 난다
 function cutBox(b) {
@@ -1659,11 +1884,49 @@ function cutBox(b) {
       }
       half.position.y -= sy * 0.12;
       scene.add(half);
+      cutHalves.push(half);
     }
   }
   shatter({ x:(b.min.x + b.max.x) / 2, y:(b.min.y + b.max.y) / 2, z:(b.min.z + b.max.z) / 2 },
           0xffb060, 10);
   toast('✂️ ' + (b.name || '물건') + ' 두 동강!', '레이저에 닿으면 다 갈라집니다');
+}
+
+// 사람 손에 부서진 물건은 조각조각 재가 되어 바닥에 남는다
+var ashes = [];
+
+function smashBox(b, who) {
+  if (!b || b.cut) return;
+  b.disabled = true;
+  b.cut = true;
+  var cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+  var sx = b.max.x - b.min.x, sz = b.max.z - b.min.z;
+  if (b.mesh) b.mesh.visible = false;
+
+  shatter({ x:cx, y:(b.min.y + b.max.y) / 2, z:cz }, 0x6b6560, 12);
+
+  var n = 10 + Math.floor(Math.random() * 6);
+  for (var i = 0; i < n; i++) {
+    var g = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06 + Math.random() * 0.12, 0.03 + Math.random() * 0.04,
+                            0.06 + Math.random() * 0.12),
+      mat(i % 3 === 0 ? 0x4a453f : (i % 3 === 1 ? 0x5d574f : 0x6f6860), 0.95)
+    );
+    g.position.set(cx + (Math.random() - 0.5) * (sx + 0.6),
+                   b.min.y + 0.02,
+                   cz + (Math.random() - 0.5) * (sz + 0.6));
+    g.rotation.set(0, Math.random() * 3.14, 0);
+    g.receiveShadow = true;
+    scene.add(g);
+    ashes.push(g);
+  }
+  toast('💥 ' + (b.name || '물건') + ' 박살!', (who || '아이') + '이(가) 부숴 재만 남았습니다');
+}
+
+function smashablesIn(names) {
+  return boxes.filter(function (b) {
+    return !b.cut && !b.disabled && names.indexOf(b.name) >= 0;
+  });
 }
 
 function damageFruit(f, dt, cause) {
@@ -1693,7 +1956,8 @@ function damageFruit(f, dt, cause) {
 
 // 방 하나하나의 공간. 방귀는 이 중 아이가 있는 한 방에만 퍼진다.
 var ROOMS = {
-  거실:   { minX:-5.9, maxX:5.9, minY:0, maxY:3.2, minZ:-16.4, maxZ:-6.1 },
+  안방:   { minX:-13.8, maxX:-6.3, minY:0, maxY:3.2, minZ:-16.4, maxZ:-6.1 },
+  거실:   { minX:-6.0, maxX:5.9, minY:0, maxY:3.2, minZ:-16.4, maxZ:-6.1 },
   주방:   { minX:-4.9, maxX:4.9, minY:0, maxY:3.0, minZ:-4.9,  maxZ:4.9 },
   마당:   { minX:-8.7, maxX:8.7, minY:0, maxY:3.0, minZ:5.1,   maxZ:17.7 },
   '2층':  { minX:0.5,  maxX:5.0, minY:3.0, maxY:5.6, minZ:-5.0, maxZ:-0.5 }
@@ -1767,13 +2031,15 @@ function updateFart(dt) {
 /* ---- 아이 상태 기계 ---- */
 
 function wakeChild(n) {
-  CHILD.state = 'angry';
-  CHILD.timer = ANGRY_TIME;
+  CHILD.state = 'tantrum';               // 레이저를 쏘기 전에 먼저 안방으로 간다
+  CHILD.timer = TANTRUM_TIME;
   CHILD.pos.set(SOFA_SPOT.x, 0, -11.6);
   CHILD.yaw = 0;
+  CHILD.smashTarget = null;
+  CHILD.smashT = 0;
   setSeated(false);
   if (!mitt.owner) mitt.vy = 0;          // 허벅지가 사라지므로 미트는 떨어진다
-  toast('😡 아이가 깼다!', '허벅지 위에 과일이 ' + n + '개! 30초 동안 눈에서 레이저가 나옵니다');
+  toast('😡 아이가 깼다!', '허벅지 위에 과일 ' + n + '개 — 안방으로 화풀이하러 갑니다 (2층 CCTV로 보세요)');
 }
 
 function sleepChild() {
@@ -1782,6 +2048,81 @@ function sleepChild() {
   setSeated(true);
   setChildAwake(false);
   toast('😴 아이가 다시 잠들었다', '레이저가 멈췄습니다');
+}
+
+// 사람(아이/엄마)을 목표 지점으로 걷게 한다
+function walkPerson(who, aimX, aimZ, speed, dt) {
+  var dx = aimX - who.pos.x, dz = aimZ - who.pos.z;
+  var len = Math.hypot(dx, dz);
+  if (len > 0.25 && speed > 0) {
+    who.pos.x += (dx / len) * speed * dt;
+    who.pos.z += (dz / len) * speed * dt;
+    var wantYaw = Math.atan2(dx, dz);
+    var diff = ((wantYaw - who.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    who.yaw += diff * Math.min(1, 5 * dt);
+  }
+  return len;
+}
+
+// 아이가 안방에서 물건을 하나씩 부순다. 2층 CCTV 로 볼 수 있다.
+function updateTantrum(dt) {
+  var inBedroom = CHILD.pos.x < -6.2;
+
+  // 안방 문까지 가서 들어간다
+  if (!inBedroom) {
+    var toDoor = walkPerson(CHILD, BED_DOOR.x - 0.5, BED_DOOR.z, 2.6, dt);
+    if (CHILD.pos.z > -6.4) CHILD.pos.z = -6.4;          // 거실 밖으로는 안 나간다
+    CHILD.stand.position.copy(CHILD.pos);
+    CHILD.stand.rotation.y = CHILD.yaw;
+    CHILD.stand.position.y = Math.abs(Math.sin(game.time * 6)) * 0.05;
+    if (CHILD.timer <= 2) { CHILD.state = 'angry'; CHILD.timer = ANGRY_TIME; }
+    return;
+  }
+
+  // 부술 물건을 고른다
+  if (!CHILD.smashTarget || CHILD.smashTarget.cut) {
+    var list = smashablesIn(TANTRUM_TARGETS);
+    var best = null, bestD = Infinity;
+    list.forEach(function (b) {
+      var d = Math.hypot((b.min.x + b.max.x) / 2 - CHILD.pos.x,
+                         (b.min.z + b.max.z) / 2 - CHILD.pos.z);
+      if (d < bestD) { bestD = d; best = b; }
+    });
+    CHILD.smashTarget = best;
+    CHILD.smashT = 0;
+  }
+
+  if (CHILD.smashTarget) {
+    var b = CHILD.smashTarget;
+    var tx = (b.min.x + b.max.x) / 2, tz = (b.min.z + b.max.z) / 2;
+    var d = walkPerson(CHILD, tx, tz + 0.9, 2.8, dt);
+    if (d < 1.3) {
+      CHILD.smashT += dt;
+      if (CHILD.smashT > 0.55) {                  // 주먹을 내리친다
+        smashBox(b, '아이');
+        CHILD.smashTarget = null;
+        CHILD.smashT = 0;
+      }
+    }
+  } else {
+    // 다 부쉈으면 방 안을 쿵쿵 돌아다닌다
+    walkPerson(CHILD, -10 + Math.sin(game.time * 0.7) * 2.5, -11 + Math.cos(game.time * 0.9) * 2.5, 2.2, dt);
+  }
+
+  CHILD.pos.x = Math.max(-13.6, Math.min(-6.4, CHILD.pos.x));
+  CHILD.pos.z = Math.max(-16.2, Math.min(-6.4, CHILD.pos.z));
+  CHILD.stand.position.copy(CHILD.pos);
+  CHILD.stand.rotation.y = CHILD.yaw;
+  // 화풀이 중에는 몸을 들썩이고 팔을 휘두른다
+  CHILD.stand.position.y = Math.abs(Math.sin(game.time * 9)) * 0.09;
+  CHILD.stand.rotation.z = Math.sin(game.time * 14) * 0.05;
+
+  if (CHILD.timer <= 0) {
+    CHILD.stand.rotation.z = 0;
+    CHILD.state = 'angry';
+    CHILD.timer = ANGRY_TIME;
+    toast('😡 이제 레이저다!', '아이가 눈에 레이저를 달고 나옵니다');
+  }
 }
 
 function updateChild(dt) {
@@ -1798,6 +2139,12 @@ function updateChild(dt) {
   }
 
   CHILD.timer -= dt;
+
+  /* --- 안방 화풀이 --- */
+  if (CHILD.state === 'tantrum') {
+    updateTantrum(dt);
+    return;
+  }
 
   /* --- 목표 정하기 --- */
   var target = null;
@@ -1820,11 +2167,17 @@ function updateChild(dt) {
   } else {
     aimX = CHILD.pos.x; aimZ = goalZ = CHILD.pos.z; speed = 0;
   }
-  // 다른 방이면 문을 지나 반대편까지 걸어 나간다 (문턱에서 멈추지 않게)
-  var inLiving = CHILD.pos.z < -5.0;
-  if (speed > 0 && inLiving !== (goalZ < -5.0)) {
-    aimX = DOOR.x;
-    aimZ = inLiving ? -4.4 : -6.6;
+  // 안방에 있으면 먼저 안방 문으로 나온다 (벽을 뚫고 지나가지 않게)
+  var goalX = aimX;
+  if (speed > 0 && CHILD.pos.x < -6.15 && goalX > -6.15) {
+    aimX = -5.5; aimZ = BED_DOOR.z;
+  } else {
+    // 주방 <-> 거실도 문을 지나 반대편까지 걸어 나간다 (문턱에서 멈추지 않게)
+    var inLiving = CHILD.pos.z < -5.0;
+    if (speed > 0 && inLiving !== (goalZ < -5.0)) {
+      aimX = DOOR.x;
+      aimZ = inLiving ? -4.4 : -6.6;
+    }
   }
 
   var dx = aimX - CHILD.pos.x, dz = aimZ - CHILD.pos.z;
@@ -1838,7 +2191,7 @@ function updateChild(dt) {
   }
   // 문 근처가 아니면 벽을 넘지 않는다
   if (CHILD.pos.z < -5.0) {
-    CHILD.pos.x = Math.max(-5.5, Math.min(5.5, CHILD.pos.x));
+    CHILD.pos.x = Math.max(CHILD.pos.x < -6.2 ? -13.6 : -5.5, Math.min(5.5, CHILD.pos.x));
     CHILD.pos.z = Math.max(-16.0, Math.min(Math.abs(CHILD.pos.x - DOOR.x) < 0.7 ? -4.9 : -6.3, CHILD.pos.z));
   } else {
     CHILD.pos.x = Math.max(-4.6, Math.min(4.6, CHILD.pos.x));
@@ -2440,7 +2793,10 @@ function updateHUD() {
   document.getElementById('dist').textContent = '애벌레 거리 ' + d.toFixed(1) + 'm';
   document.getElementById('catHp').textContent = Math.max(0, caterpillar.hp) + '%';
   var cs = document.getElementById('childState');
-  if (CHILD.state === 'angry') {
+  if (CHILD.state === 'tantrum') {
+    cs.innerHTML = '💥 <b>안방에서 화풀이</b> ' + Math.max(0, Math.ceil(CHILD.timer)) + '초';
+    cs.style.color = '#ffa23a';
+  } else if (CHILD.state === 'angry') {
     cs.innerHTML = '🔴 <b>레이저!</b> ' + Math.max(0, Math.ceil(CHILD.timer)) + '초';
     cs.style.color = '#ff6a58';
   } else if (CHILD.state === 'return') {
@@ -2479,6 +2835,7 @@ function loop(now) {
     updateCaterpillar(dt);
     updateMitt(dt);
     updateChild(dt);
+    updateMom(dt);
     updateFart(dt);
     updateHpBar();
     updateFruitBars();
@@ -2493,6 +2850,15 @@ function loop(now) {
   });
 
   updateCamera(dt);
+
+  // 2층에 있을 때만 CCTV 화면을 갱신한다
+  if (cctvOn()) {
+    if (window.__cctvRec) window.__cctvRec.visible = Math.sin(game.time * 3) > -0.2;
+    renderer.setRenderTarget(cctvRT);
+    renderer.render(scene, cctvCam);
+    renderer.setRenderTarget(null);
+  }
+
   renderer.render(scene, camera);
 }
 
@@ -2519,6 +2885,7 @@ window.FOOD_GAME = {
   getCamYaw: function () { return camYaw; },
   keys: keys,
   fart: fart, roomOf: roomOf, startFart: startFart,
+  ashes: ashes, MOM: MOM, cctvOn: cctvOn,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
