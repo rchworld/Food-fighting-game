@@ -1581,9 +1581,6 @@ scene.add(CAR.group);
       belly.position.y = 0.58; belly.castShadow = true; g.add(belly);
       var chest = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.5, 0.42, 16), m);
       chest.position.y = 1.16; chest.castShadow = true; g.add(chest);
-      var belt = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.06, 8, 24), mat(0x4a4038, 0.8));
-      belt.rotation.x = Math.PI / 2; belt.position.y = 0.5;
-      belt.scale.set(1.12, 0.9, 1); g.add(belt);
       headY = 1.62; headR = 0.36;
 
     } else if (build === 1) {
