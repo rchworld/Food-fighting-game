@@ -3027,8 +3027,14 @@ function setCharacter(index) {
   if (player.mesh) scene.remove(player.mesh);
   player.charIndex = index;
   var def = CHARS[index];
-  if (game.role === 'human') def = HUMAN;
-  player.mesh = makeBody(def);
+  if (game.role === 'human') {
+    HUMAN.r = HUMAN_R0;                    // 몸은 기본 크기에서 시작해 먹으면서 큰다
+    def = HUMAN;
+    player.mesh = makeBody({ key:'human', name:'사람', r:HUMAN_R0,
+                            color:HUMAN.color, shape:'human' });
+  } else {
+    player.mesh = makeBody(def);
+  }
   scene.add(player.mesh);
   document.getElementById('charName').textContent =
     game.role === 'human' ? '🧑 사람' : '🍓 ' + def.name;
@@ -3390,6 +3396,7 @@ function restart() {
   game.running = true; game.time = 0; game.level = 1; game.over = false; game.grace = GRACE;
   game.role = Math.random() < 0.5 ? 'human' : 'fruit';     // 과일이냐 사람이냐 — 무작위
   player.belly = 0;
+  HUMAN.r = HUMAN_R0; HUMAN.speed = 3.15; HUMAN.jump = 3.35;
   pfart.t = 0; PLAYER_FART.visible = false;
   player.pos.set(0, 0, 3.0);
   player.vel.set(0, 0, 0);
@@ -3729,7 +3736,8 @@ function hitCaterpillar(fromPos, byName) {
   c.flash = 0.35;
   var rs = document.getElementById('roleState');
   rs.innerHTML = game.role === 'human'
-    ? '🧑 <b>사람</b> — 배 ' + (player.belly || 0).toFixed(1) + ' (F 방귀)'
+    ? '🧑 <b>사람</b> — 배 ' + (player.belly || 0).toFixed(1) +
+      ' · 몸 ×' + (HUMAN.r / HUMAN_R0).toFixed(1) + ' (F 방귀)'
     : '🍓 <b>과일</b> — 애벌레를 피하세요';
   var ss = document.getElementById('summonState');
   ss.innerHTML = SUMMON.phase
@@ -5175,11 +5183,20 @@ PLAYER_FART.visible = false;
 scene.add(PLAYER_FART);
 var pfart = { t:0, r:0 };
 
-function humanBelly(cm) {                      // 배가 앞으로 불룩해진다
+var HUMAN_R0 = 0.42;
+
+/* 먹을수록 다른 사람들처럼 몸 전체가 쑥쑥 큰다 */
+function humanBelly(cm) {
   if (!player.mesh || !player.mesh.bellyMesh) return;
-  var k = 1 + Math.min(6, cm) * 0.16;
+  var grow = 1 + Math.min(14, cm) * 0.34;          // 몸 전체가 커진다 (최대 약 5.8배)
+  player.mesh.scale.setScalar(grow);
+  HUMAN.r = HUMAN_R0 * grow;                       // 충돌 크기도 같이 커진다
+  HUMAN.speed = 3.15 + Math.min(14, cm) * 0.14;    // 몸집이 크면 보폭도 커진다
+  HUMAN.jump = 3.35 + Math.min(14, cm) * 0.08;
+
+  var bulge = 1 + Math.min(14, cm) * 0.09;         // 그중에서도 배가 제일 불룩하다
   var b = player.mesh.bellyMesh;
-  b.scale.set(k, 0.9 * (1 + Math.min(6, cm) * 0.05), 0.92 * k);
+  b.scale.set(bulge, 0.9 * (1 + Math.min(14, cm) * 0.03), 0.92 * bulge);
 }
 
 function updateHuman(dt) {
@@ -5218,9 +5235,9 @@ function playerFart() {
     toast('💨 아직 배가 안 찼다', '학교 급식(식판)을 먹으면 방귀를 뀔 수 있습니다');
     return;
   }
-  var r = 6 + player.belly * 3;
+  var r = 6 + player.belly * 4;
   player.belly = 0;
-  humanBelly(0);
+  humanBelly(0);                                   // 몸이 도로 작아진다
   pfart.t = 1.6; pfart.r = r;
   PLAYER_FART.position.set(player.pos.x, 0.8, player.pos.z);
   PLAYER_FART.visible = true;
