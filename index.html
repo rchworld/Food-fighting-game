@@ -151,7 +151,7 @@
       <b>화장실</b>은 마당과 학교 옆에 있습니다. 급해진 학생·과일이 들어가고, 한 번에 한 명만 씁니다(나오면 배가 홀쭉).<br>
       과일은 <b>등잔불</b>을 들고 다녀서 밤에도 멀리까지 보입니다.
       <b>E</b> 를 누르면 앞에 <b>텐트</b>를 치고, 그 안에 있으면 애벌레가 찾지 못합니다(옆에서 E 로 걷기).<br>
-      차를 훔쳐 타면 아이가 쫓아오는데, 그때 <b>Q</b> 로 소환하면 <b>배가 20m나 되는 거인</b>이 나타나
+      차를 훔쳐 타면 아이가 쫓아오는데, 그때 <b>Q</b> 로 소환하면 <b>배가 제일 큰 학생</b>이 나타나
       아이를 막아서고 <b>엉덩이 방귀</b>로 아이를 집까지 날려 버립니다. 몇 번이든 쓸 수 있습니다.<br>
       <b>마당 남쪽 울타리 가운데 대문</b>으로 나가 길을 따라 <b>300m</b> 내려가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
@@ -3437,7 +3437,7 @@ function restart() {
   setSeated(true); setChildAwake(false);
   player.laserT = 0;
   night.on = false; night.blend = 0;
-  SUMMON.phase = null; GIANT.group.visible = false;
+  SUMMON.phase = null; SUMMON.st = null;
   TOILETS.forEach(function (w) { w.user = null; w.t = 0; });
   STUDENTS.forEach(function (st) { st.group.visible = true; st.inWC = null;
     st.urge = 30 + Math.random() * 60; st.box.disabled = false; });
@@ -3725,7 +3725,7 @@ function hitCaterpillar(fromPos, byName) {
     : '🍓 <b>과일</b> — 애벌레를 피하세요';
   var ss = document.getElementById('summonState');
   ss.innerHTML = SUMMON.phase
-    ? '🌟 <b>거인 소환 중!</b>'
+    ? '🌟 <b>학생 소환 중!</b>'
     : (CHILD.state === 'chase' ? '🌟 <b>소환 (Q)</b> — 지금 쓸 수 있음'
                                : '🌟 소환 (Q) — 아이가 쫓아올 때');
   document.getElementById('catHp').textContent = Math.max(0, c.hp) + '%';
@@ -5307,16 +5307,30 @@ function useSummon() {
   if (SUMMON.phase) return;                        // 소환은 몇 번이든 쓸 수 있다
   if (CHILD.state !== 'chase') return;             // 아이가 쫓아올 때만 쓸 수 있다
 
+  // 지금 배가 제일 큰 학생을 부른다
+  var best = null, bw = -1;
+  STUDENTS.forEach(function (st) {
+    if (st.thrown || st.inWC) return;
+    var w = st.shown + (st.buildIdx === 0 ? 8 : 0);
+    if (w > bw) { bw = w; best = st; }
+  });
+  if (!best) return;
+
   SUMMON.phase = 'stand';
   SUMMON.t = 1.2;
+  SUMMON.st = best;
 
   // 아이가 달려오는 바로 앞에 나타나, 엉덩이를 아이 쪽으로 둔다
   var fx = Math.sin(CHILD.yaw), fz = Math.cos(CHILD.yaw);
-  GIANT.group.position.set(CHILD.pos.x + fx * 15, 0, CHILD.pos.z + fz * 15);
-  GIANT.group.rotation.y = CHILD.yaw;              // 아이에게 등(엉덩이)을 보인다
-  GIANT.group.visible = true;
-  SUMMON.at = { x:GIANT.group.position.x, z:GIANT.group.position.z };
-  shatter({ x:GIANT.group.position.x, y:6, z:GIANT.group.position.z }, 0xffe27a, 22);
+  var away = studentRadius(best) + 2.5;
+  best.mode = 'summon'; best.modeT = 1e9;
+  best.group.visible = true;
+  best.group.position.set(CHILD.pos.x + fx * away, 0, CHILD.pos.z + fz * away);
+  best.target = { x:best.group.position.x, z:best.group.position.z };
+  best.group.rotation.y = CHILD.yaw;               // 아이에게 등(엉덩이)을 보인다
+  best.room = null;                                // 밖이니 마음껏 크다
+  moveStudentBox(best);
+  shatter({ x:best.group.position.x, y:1.2, z:best.group.position.z }, 0xffe27a, 18);
 }
 
 function updateSummon(dt) {
@@ -5330,22 +5344,24 @@ function updateSummon(dt) {
   }
   if (!SUMMON.phase) return;
 
+  var su = SUMMON.st;
   SUMMON.t -= dt;
-  GIANT.group.position.y = Math.abs(Math.sin(game.time * 3)) * 0.25;   // 뱃살이 출렁인다
+  su.group.position.y = Math.abs(Math.sin(game.time * 3)) * 0.12;      // 뱃살이 출렁인다
 
   if (SUMMON.phase === 'stand') {                  // 아이 앞을 막아선다
-    var gx = GIANT.group.position.x, gz = GIANT.group.position.z;
-    var ax = gx - Math.sin(GIANT.group.rotation.y) * (GIANT.r + 2);
-    var az = gz - Math.cos(GIANT.group.rotation.y) * (GIANT.r + 2);
+    var gx = su.group.position.x, gz = su.group.position.z;
+    var back = studentRadius(su) + 1.2;
+    var ax = gx - Math.sin(su.group.rotation.y) * back;
+    var az = gz - Math.cos(su.group.rotation.y) * back;
     CHILD.pos.x += (ax - CHILD.pos.x) * Math.min(1, dt * 1.4);
     CHILD.pos.z += (az - CHILD.pos.z) * Math.min(1, dt * 1.4);
     CHILD.stand.position.set(CHILD.pos.x, 0, CHILD.pos.z);
     if (SUMMON.t <= 0) {
       SUMMON.phase = 'blast';
       SUMMON.t = 1.6;
-      var bx = gx - Math.sin(GIANT.group.rotation.y) * (GIANT.r * 0.95);
-      var bz = gz - Math.cos(GIANT.group.rotation.y) * (GIANT.r * 0.95);
-      SUMMON.blast.position.set(bx, GIANT.r * 0.6, bz);   // 엉덩이 쪽에서 터진다
+      var bx = gx - Math.sin(su.group.rotation.y) * studentRadius(su) * 0.9;
+      var bz = gz - Math.cos(su.group.rotation.y) * studentRadius(su) * 0.9;
+      SUMMON.blast.position.set(bx, Math.max(0.8, su.box.max.y * 0.45), bz);   // 엉덩이 쪽에서 터진다
       SUMMON.blast.visible = true;
       SUMMON.from = { x:CHILD.pos.x, y:0, z:CHILD.pos.z };
       SUMMON.flight = 0;
@@ -5372,7 +5388,7 @@ function updateSummon(dt) {
   CHILD.pos.y = 0;
 
   var f2 = Math.max(0, SUMMON.t / 1.6);
-  SUMMON.blast.scale.setScalar(26 * (1.05 - f2 * 0.55));
+  SUMMON.blast.scale.setScalar((14 + su.shown) * (1.05 - f2 * 0.55));
   SUMMON.blast.material.opacity = 0.34 * f2;
 
   if (k >= 1) {                                    // 집에 떨어져 다시 잠든다
@@ -5383,7 +5399,11 @@ function updateSummon(dt) {
     CHILD.timer = 0;
     CHILD.chaseBack = 'sleep';
     setSeated(true); setChildAwake(false);
-    GIANT.group.visible = false;                   // 거인은 스르르 사라진다
+    su.mode = 'seat';                              // 학생은 제자리로 돌아간다
+    su.target = { x:su.seat.x, z:su.seat.z };
+    su.modeT = 20 + Math.random() * 20;
+    su.room = su.roomLevel ? su.room : su.room0;
+    SUMMON.st = null;
   }
 }
 
