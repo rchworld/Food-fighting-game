@@ -2841,7 +2841,23 @@ function overlapsXZ(p, r, b) {
 // 위치 p(발 기준)를 축별로 이동시키며 박스와 충돌 해결
 // ghost=true (트램펄린으로 날아가는 중)면 최고점에 닿을 때까지 가구를 통과한다.
 // 가구 모서리에 걸려 포물선이 끊기는 것을 막고, 최고점 이후 정상적으로 위에 착지한다.
+// 빠르게 달릴 때 얇은 벽을 뚫고 지나가지 않도록, 한 프레임을 잘게 나눠 푼다
 function moveAndCollide(p, r, h, vel, dt, ghost) {
+  var dist = Math.hypot(vel.x, vel.z) * dt;
+  if (!ghost && dist > 0.22) {
+    var n = Math.min(10, Math.ceil(dist / 0.22));
+    var out = { grounded:false, tramp:null };
+    for (var q = 0; q < n; q++) {
+      var r2 = moveAndCollideStep(p, r, h, vel, dt / n, ghost);
+      if (r2.grounded) out.grounded = true;
+      if (r2.tramp) out.tramp = r2.tramp;
+    }
+    return out;
+  }
+  return moveAndCollideStep(p, r, h, vel, dt, ghost);
+}
+
+function moveAndCollideStep(p, r, h, vel, dt, ghost) {
   var i, b, res = { grounded:false, tramp:null };
 
   if (ghost) {
@@ -4998,15 +5014,15 @@ function updateHUD() {
 var TOILETS = [];
 
 function buildToilet(x, z, name) {
-  var wall = mat(0xe6e2d8, 0.9), t = 0.22, w = 1.5, h = 2.3;
+  var wall = mat(0xe6e2d8, 0.9), t = 0.6, w = 1.9, h = 2.3;   // 벽이 두툼해야 달려도 뚫고 지나가지 않는다
   // 문은 +z 쪽
-  solid(x - w, x - 0.55, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
-  solid(x + 0.55, x + w, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x - w, x - 0.6, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x + 0.6, x + w, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
   solid(x - w, x + w, 0, h, z - w, z - w + t, 0, { material:wall, name:'화장실 벽' });
   solid(x - w, x - w + t, 0, h, z - w, z + w, 0, { material:wall, name:'화장실 벽' });
   solid(x + w - t, x + w, 0, h, z - w, z + w, 0, { material:wall, name:'화장실 벽' });
   solid(x - w, x + w, h, h + 0.18, z - w, z + w, 0, { material:mat(0x8a5a4a, 0.9), name:'화장실 지붕' });
-  var door = addDoor(x - 0.55, z + w, 1.1, 2.0, 0.12, false, 1, 0x7a5a3c, name + ' 문');
+  var door = addDoor(x - 0.6, z + w - t / 2, 1.2, 2.0, 0.4, false, 1, 0x7a5a3c, name + ' 문');
 
   // 변기
   var bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.42, 14), mat(0xf4f6f8, 0.3));
