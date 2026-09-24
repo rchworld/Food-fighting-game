@@ -97,7 +97,7 @@
     <div>👶 아이 위 <b id="lapCount">0</b> / 2</div>
     <div id="childState">😴 자는 중</div>
     <div id="timeOfDay">☀️ 낮</div>
-    <div id="summonState">🌟 소환 아이템 1개 (Q)</div>
+    <div id="summonState">🌟 소환 (Q)</div>
     <div id="schoolDist" style="display:none">🏫 학교까지 300m</div>
   </div>
 </div>
@@ -147,8 +147,8 @@
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
       과일은 <b>등잔불</b>을 들고 다녀서 밤에도 멀리까지 보입니다.
       <b>E</b> 를 누르면 앞에 <b>텐트</b>를 치고, 그 안에 있으면 애벌레가 찾지 못합니다(옆에서 E 로 걷기).<br>
-      차를 훔쳐 타면 아이가 쫓아오는데, 그때 <b>Q</b> 로 <b>소환 아이템</b>을 쓰면
-      뱃살이 제일 큰 학생이 아이 앞을 막아서고 <b>엉덩이 방귀</b>로 아이를 집까지 날려 버립니다.<br>
+      차를 훔쳐 타면 아이가 쫓아오는데, 그때 <b>Q</b> 로 소환하면 <b>배가 20m나 되는 거인</b>이 나타나
+      아이를 막아서고 <b>엉덩이 방귀</b>로 아이를 집까지 날려 버립니다. 몇 번이든 쓸 수 있습니다.<br>
       <b>마당 남쪽 울타리 가운데 대문</b>으로 나가 길을 따라 <b>300m</b> 내려가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
       도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
@@ -3345,7 +3345,7 @@ function restart() {
   setSeated(true); setChildAwake(false);
   player.laserT = 0;
   night.on = false; night.blend = 0;
-  SUMMON.count = 1; SUMMON.recharge = 0; SUMMON.phase = null;
+  SUMMON.phase = null; GIANT.group.visible = false;
   SUMMON.blast.visible = false;
   TENT.placed = false; TENT.group.visible = false;
   TENT.boxes.forEach(function (b) { b.disabled = true; });
@@ -3625,9 +3625,10 @@ function hitCaterpillar(fromPos, byName) {
   c.pos.x += (dx / l) * 0.7; c.pos.z += (dz / l) * 0.7;
   c.flash = 0.35;
   var ss = document.getElementById('summonState');
-  ss.innerHTML = SUMMON.count > 0
-    ? '🌟 <b>소환 아이템 ' + SUMMON.count + '개</b> (Q)'
-    : '🌟 소환 아이템 충전 중 ' + Math.ceil(SUMMON.recharge) + '초';
+  ss.innerHTML = SUMMON.phase
+    ? '🌟 <b>거인 소환 중!</b>'
+    : (CHILD.state === 'chase' ? '🌟 <b>소환 (Q)</b> — 지금 쓸 수 있음'
+                               : '🌟 소환 (Q) — 아이가 쫓아올 때');
   document.getElementById('catHp').textContent = Math.max(0, c.hp) + '%';
   if (c.hp <= 0) {
     killCaterpillar();
@@ -4943,6 +4944,39 @@ var SUMMON = {
     new THREE.MeshBasicMaterial({ color:0xe8dc55, transparent:true, opacity:0, depthWrite:false }))
 };
 
+/* 배가 20m나 되는 거인 — 소환되면 나타난다 */
+var GIANT = { group:new THREE.Group(), r:10, headY:0 };
+
+(function buildGiant() {
+  var g = GIANT.group;
+  var skin = mat(0xf0c69c, 0.85), shirt = mat(0xc9694f, 0.9);
+  var belly = new THREE.Mesh(new THREE.SphereGeometry(GIANT.r, 32, 24), shirt);
+  belly.scale.set(1, 0.86, 0.94);
+  belly.position.y = GIANT.r * 0.92;
+  belly.castShadow = true; g.add(belly);
+  var chest = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 7.4, 4.6, 24), shirt);
+  chest.position.y = GIANT.r * 1.72; chest.castShadow = true; g.add(chest);
+  var head = new THREE.Mesh(new THREE.SphereGeometry(3.1, 24, 18), skin);
+  head.position.y = GIANT.r * 2.06; head.castShadow = true; g.add(head);
+  GIANT.headY = GIANT.r * 2.06;
+  var hair = new THREE.Mesh(new THREE.SphereGeometry(3.2, 24, 18, 0, 6.3, 0, 1.2), mat(0x3a2a20, 0.9));
+  hair.position.y = GIANT.r * 2.1; g.add(hair);
+  [-1, 1].forEach(function (sd) {
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), mat(0x161218, 0.4));
+    eye.position.set(sd * 1.1, GIANT.r * 2.08, 2.85); g.add(eye);
+    var arm = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.2, 8.5, 12), shirt);
+    arm.position.set(sd * 9.4, GIANT.r * 1.3, 0); arm.rotation.z = sd * 0.45;
+    arm.castShadow = true; g.add(arm);
+    var leg = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 1.9, 6.0, 14), mat(0x3f4a63, 0.9));
+    leg.position.set(sd * 3.6, 3.0, 0); leg.castShadow = true; g.add(leg);
+  });
+  var belt = new THREE.Mesh(new THREE.TorusGeometry(9.6, 0.7, 10, 28), mat(0x4a4038, 0.8));
+  belt.rotation.x = Math.PI / 2; belt.position.y = GIANT.r * 0.55; belt.scale.set(1, 0.94, 1);
+  g.add(belt);
+  g.visible = false;
+  scene.add(g);
+})();
+
 (function buildSummonItem() {
   var g = SUMMON.item;
   var orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 0),
@@ -4958,35 +4992,23 @@ var SUMMON = {
 })();
 
 function useSummon() {
-  if (SUMMON.phase || SUMMON.count <= 0) return;
+  if (SUMMON.phase) return;                        // 소환은 몇 번이든 쓸 수 있다
   if (CHILD.state !== 'chase') return;             // 아이가 쫓아올 때만 쓸 수 있다
-  var best = null;
-  STUDENTS.forEach(function (st) {                 // 뱃살이 제일 큰 학생
-    if (st.thrown) return;
-    var w = st.shown + (st.buildIdx === 0 ? 6 : 0);
-    if (!best || w > best.w) best = { st:st, w:w };
-  });
-  if (!best) return;
 
-  var st2 = best.st;
-  SUMMON.st = st2;
   SUMMON.phase = 'stand';
-  SUMMON.t = 1.1;
-  SUMMON.count--;
-  SUMMON.recharge = 40;
+  SUMMON.t = 1.2;
 
   // 아이가 달려오는 바로 앞에 나타나, 엉덩이를 아이 쪽으로 둔다
   var fx = Math.sin(CHILD.yaw), fz = Math.cos(CHILD.yaw);
-  st2.mode = 'summon'; st2.modeT = 1e9;
-  st2.group.position.set(CHILD.pos.x + fx * 4.0, 0, CHILD.pos.z + fz * 4.0);
-  st2.target = { x:st2.group.position.x, z:st2.group.position.z };
-  st2.group.rotation.y = CHILD.yaw;                // 아이에게 등(엉덩이)을 보인다
-  moveStudentBox(st2);
-  shatter({ x:st2.group.position.x, y:1.0, z:st2.group.position.z }, 0xffe27a, 14);
+  GIANT.group.position.set(CHILD.pos.x + fx * 15, 0, CHILD.pos.z + fz * 15);
+  GIANT.group.rotation.y = CHILD.yaw;              // 아이에게 등(엉덩이)을 보인다
+  GIANT.group.visible = true;
+  SUMMON.at = { x:GIANT.group.position.x, z:GIANT.group.position.z };
+  shatter({ x:GIANT.group.position.x, y:6, z:GIANT.group.position.z }, 0xffe27a, 22);
 }
 
 function updateSummon(dt) {
-  SUMMON.item.visible = SUMMON.count > 0 && !player.inHole;
+  SUMMON.item.visible = !player.inHole;
   if (SUMMON.item.visible) {                       // 과일이 들고 다닌다
     var side = camYaw - 1.15, r = charDef().r;
     SUMMON.item.position.set(player.pos.x + Math.sin(side) * (r + 0.18),
@@ -4994,33 +5016,31 @@ function updateSummon(dt) {
                              player.pos.z + Math.cos(side) * (r + 0.18));
     SUMMON.item.rotation.y += dt * 1.6;
   }
-  if (SUMMON.count <= 0 && SUMMON.recharge > 0) {
-    SUMMON.recharge -= dt;
-    if (SUMMON.recharge <= 0) SUMMON.count = 1;    // 한참 있으면 다시 쓸 수 있다
-  }
   if (!SUMMON.phase) return;
 
-  var st = SUMMON.st;
   SUMMON.t -= dt;
-  st.group.position.y = Math.abs(Math.sin(game.time * 5)) * 0.05;
+  GIANT.group.position.y = Math.abs(Math.sin(game.time * 3)) * 0.25;   // 뱃살이 출렁인다
 
   if (SUMMON.phase === 'stand') {                  // 아이 앞을 막아선다
-    CHILD.pos.x += (st.group.position.x - CHILD.pos.x) * Math.min(1, dt * 1.2);
-    CHILD.pos.z += (st.group.position.z - CHILD.pos.z) * Math.min(1, dt * 1.2);
+    var gx = GIANT.group.position.x, gz = GIANT.group.position.z;
+    var ax = gx - Math.sin(GIANT.group.rotation.y) * (GIANT.r + 2);
+    var az = gz - Math.cos(GIANT.group.rotation.y) * (GIANT.r + 2);
+    CHILD.pos.x += (ax - CHILD.pos.x) * Math.min(1, dt * 1.4);
+    CHILD.pos.z += (az - CHILD.pos.z) * Math.min(1, dt * 1.4);
     CHILD.stand.position.set(CHILD.pos.x, 0, CHILD.pos.z);
     if (SUMMON.t <= 0) {
       SUMMON.phase = 'blast';
-      SUMMON.t = 1.4;
-      var bx = st.group.position.x - Math.sin(st.group.rotation.y) * 1.2;
-      var bz = st.group.position.z - Math.cos(st.group.rotation.y) * 1.2;
-      SUMMON.blast.position.set(bx, 1.0, bz);      // 엉덩이 쪽에서 터진다
+      SUMMON.t = 1.6;
+      var bx = gx - Math.sin(GIANT.group.rotation.y) * (GIANT.r * 0.95);
+      var bz = gz - Math.cos(GIANT.group.rotation.y) * (GIANT.r * 0.95);
+      SUMMON.blast.position.set(bx, GIANT.r * 0.6, bz);   // 엉덩이 쪽에서 터진다
       SUMMON.blast.visible = true;
       SUMMON.from = { x:CHILD.pos.x, y:0, z:CHILD.pos.z };
       SUMMON.flight = 0;
       // 방귀 바람에 근처 사람도 과일도 휘청인다
       fruits().forEach(function (t) {
         var d = Math.hypot(t.pos.x - bx, t.pos.z - bz);
-        if (d < 14 && d > 0.01) {
+        if (d < 30 && d > 0.01) {
           t.obj.vel.x = (t.pos.x - bx) / d * 8;
           t.obj.vel.z = (t.pos.z - bz) / d * 8;
           t.obj.vel.y = 4.5; t.obj.launchT = 0.6; t.obj.grounded = false;
@@ -5031,7 +5051,7 @@ function updateSummon(dt) {
   }
 
   /* 아이가 집까지 붕 날아간다 */
-  SUMMON.flight += dt / 1.4;
+  SUMMON.flight += dt / 1.6;
   var k = Math.min(1, SUMMON.flight);
   CHILD.pos.x = SUMMON.from.x + (SOFA_SPOT.x - SUMMON.from.x) * k;
   CHILD.pos.z = SUMMON.from.z + (SOFA_SPOT.z - SUMMON.from.z) * k;
@@ -5039,8 +5059,8 @@ function updateSummon(dt) {
   CHILD.stand.rotation.x = k * 26;
   CHILD.pos.y = 0;
 
-  var f2 = Math.max(0, SUMMON.t / 1.4);
-  SUMMON.blast.scale.setScalar((16 + st.shown) * (1.05 - f2 * 0.55));
+  var f2 = Math.max(0, SUMMON.t / 1.6);
+  SUMMON.blast.scale.setScalar(26 * (1.05 - f2 * 0.55));
   SUMMON.blast.material.opacity = 0.34 * f2;
 
   if (k >= 1) {                                    // 집에 떨어져 다시 잠든다
@@ -5051,9 +5071,7 @@ function updateSummon(dt) {
     CHILD.timer = 0;
     CHILD.chaseBack = 'sleep';
     setSeated(true); setChildAwake(false);
-    st.mode = 'seat';                              // 학생은 제자리로 돌아간다
-    st.target = { x:st.seat.x, z:st.seat.z };
-    st.modeT = 30 + Math.random() * 20;
+    GIANT.group.visible = false;                   // 거인은 스르르 사라진다
   }
 }
 
@@ -5263,7 +5281,7 @@ window.FOOD_GAME = {
   CITY: CITY, BUILDINGS: BUILDINGS, CITIZENS: CITIZENS, BALLS: BALLS, fireCannon: fireCannon,
   SFART: SFART, studentFart: studentFart, applyStudentSize: applyStudentSize,
   TENT: TENT, LANTERN: LANTERN, pitchTent: pitchTent, inTent: inTent,
-  SUMMON: SUMMON, useSummon: useSummon,
+  SUMMON: SUMMON, useSummon: useSummon, GIANT: GIANT,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
