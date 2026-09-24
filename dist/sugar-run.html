@@ -144,6 +144,8 @@
       많이 먹을수록 몸이 불어납니다. 학생 몸은 통과할 수 없고, 책상 옆 발판을 밟으면 책상 위로 올라갑니다.
       학생들의 <b>방귀</b>에 닿으면 과일이 멀리 날아갑니다. 학생이 교실보다 커지면 <b>벽을 부수고</b> 더 자랍니다.
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
+      과일은 <b>등잔불</b>을 들고 다녀서 밤에도 멀리까지 보입니다.
+      <b>E</b> 를 누르면 앞에 <b>텐트</b>를 치고, 그 안에 있으면 애벌레가 찾지 못합니다(옆에서 E 로 걷기).<br>
       <b>마당 남쪽 울타리 가운데 대문</b>으로 나가 길을 따라 <b>300m</b> 내려가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
       도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
@@ -2889,6 +2891,7 @@ var NOT_CLIMBABLE = { '벽':1, '문틀':1, '울타리':1 };
 
 // 애벌레가 들어올 수 없는 곳: 거실, 그리고 열린 냉장고 안
 function safeFromCaterpillar(pos) {
+  if (inTent(pos)) return true;                    // 텐트 안은 안전하다
   if (pos.z < -5.0) return true;
   if (pos.y > 3.4) return true;                    // 2층
 
@@ -3235,6 +3238,7 @@ addEventListener('keydown', function (e) {
   keyTime[e.code] = performance.now();
   keys[e.code] = true;
   if (e.code === 'KeyR') restart();
+  if (e.code === 'KeyE' && game.running) pitchTent();
   // 구멍에서 나오기는 누른 순간에 바로 반응한다 (프레임 사이에 놓치지 않도록)
   if (e.code === 'Space' && game.running && player.inHole && player.holeCool <= 0) leaveHole(false);
   if (e.code === 'Space' && game.running && player.inCar && player.carCool <= 0) {
@@ -3346,6 +3350,8 @@ function restart() {
   setSeated(true); setChildAwake(false);
   player.laserT = 0;
   night.on = false; night.blend = 0;
+  TENT.placed = false; TENT.group.visible = false;
+  TENT.boxes.forEach(function (b) { b.disabled = true; });
   fart.t = 0; fart.room = null; fart.next = 10 + Math.random() * 12;
   fart.mesh.visible = false;
   while (shards.length) { scene.remove(shards.pop().mesh); }
@@ -3440,6 +3446,7 @@ function holeFloor(hole, def) { return hole.y - def.r * 1.45; }   // 머리만 �
 // 풀숲 / 파란 물건에 몸을 숨기는 경우 (이쪽은 위장이라 반투명)
 function checkCamouflage() {
   var def = charDef(), p = player.pos, i, z;
+  if (inTent(p)) return '텐트 안';
   if (def.key === 'sugar') {
     for (i = 0; i < grassZones.length; i++) {
       z = grassZones[i];
@@ -3458,9 +3465,10 @@ function checkCamouflage() {
 function hideOptionsText() {
   var def = charDef();
   var n = holes.length;
-  if (def.key === 'sugar') return '구멍 ' + n + '곳 + 잔디밭';
-  if (def.key === 'blueberry') return '구멍 ' + n + '곳 + 파란 물건';
-  return '구멍 ' + n + '곳 모두 들어갈 수 있음';
+  var tent = TENT.placed ? ' + 텐트' : ' + 텐트(E)';
+  if (def.key === 'sugar') return '구멍 ' + n + '곳 + 잔디밭' + tent;
+  if (def.key === 'blueberry') return '구멍 ' + n + '곳 + 파란 물건' + tent;
+  return '구멍 ' + n + '곳' + tent;
 }
 
 /* ------------------------------------------------------------------ *
@@ -4925,6 +4933,116 @@ function updateHUD() {
 }
 
 /* ------------------------------------------------------------------ *
+ *  등잔불과 텐트 — 과일이 늘 들고 다닌다. E 로 텐트를 치고 걷는다.
+ * ------------------------------------------------------------------ */
+
+var LANTERN = { group:new THREE.Group(), light:null, flame:null };
+
+(function buildLantern() {
+  var g = LANTERN.group;
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.014, 6, 12), mat(0x6b5a3c, 0.5, 0.5));
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.2; g.add(ring);
+  var glass = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.095, 0.17, 10),
+    new THREE.MeshStandardMaterial({ color:0xffe6a8, emissive:0xffb84a, emissiveIntensity:0.9,
+                                     transparent:true, opacity:0.75 }));
+  glass.position.y = 0.09; g.add(glass);
+  var cap = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.07, 10), mat(0x6b5a3c, 0.5, 0.5));
+  cap.position.y = 0.2; g.add(cap);
+  LANTERN.flame = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8),
+    new THREE.MeshBasicMaterial({ color:0xfff0b0 }));
+  LANTERN.flame.position.y = 0.09; g.add(LANTERN.flame);
+  LANTERN.light = new THREE.PointLight(0xffce7a, 1.5, 34, 1.4);
+  LANTERN.light.position.y = 0.12;
+  g.add(LANTERN.light);
+  scene.add(g);
+})();
+
+function updateLantern(dt) {
+  var def = charDef(), r = def.r;
+  var side = camYaw + 1.15;
+  var lx = player.pos.x + Math.sin(side) * (r + 0.16);
+  var lz = player.pos.z + Math.cos(side) * (r + 0.16);
+  LANTERN.group.position.set(lx, player.pos.y + r * 0.9, lz);
+  LANTERN.group.visible = !player.inHole;
+  // 밤에는 훨씬 멀리, 낮에는 은은하게
+  var want = night.on ? 3.4 : 0.9;
+  var flick = 0.88 + Math.sin(game.time * 11) * 0.06 + Math.sin(game.time * 7.3) * 0.06;
+  LANTERN.light.intensity = want * flick;
+  LANTERN.light.distance = night.on ? 40 : 16;
+  LANTERN.flame.scale.setScalar(flick);
+}
+
+/* ---- 텐트 ---- */
+var TENT = { placed:false, pos:new THREE.Vector3(), group:new THREE.Group(), boxes:[], cool:0 };
+
+(function buildTent() {
+  var g = TENT.group;
+  var cloth = new THREE.MeshStandardMaterial({ color:0x4f7d5a, roughness:0.95, side:THREE.DoubleSide });
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 1.25, 2.4, 3, 1, true), cloth);
+  body.rotation.z = Math.PI / 2;                 // 삼각 기둥을 눕힌다
+  body.rotation.y = Math.PI / 2;
+  body.position.y = 0.62;
+  body.castShadow = true; g.add(body);
+  var back = new THREE.Mesh(new THREE.CircleGeometry(1.25, 3), cloth);
+  back.position.set(0, 0.62, -1.2); back.rotation.z = Math.PI / 6; g.add(back);
+  var floor = new THREE.Mesh(new THREE.PlaneGeometry(2.1, 2.4), mat(0x6b5a3c, 0.95));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = 0.02; g.add(floor);
+  var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.6, 6), mat(0x8a6a44, 0.8));
+  pole.position.set(0, 0.8, 1.22); g.add(pole);
+  g.visible = false;
+  scene.add(g);
+})();
+
+function pitchTent() {
+  if (TENT.cool > 0) return;
+  TENT.cool = 0.5;
+  if (TENT.placed) {                             // 가까이 있으면 걷어서 다시 들고 간다
+    if (Math.hypot(player.pos.x - TENT.pos.x, player.pos.z - TENT.pos.z) > 3.5) {
+      toast('⛺ 텐트가 저쪽에 있습니다', '텐트 옆에서 E 를 누르면 걷습니다');
+      return;
+    }
+    TENT.placed = false;
+    TENT.group.visible = false;
+    TENT.boxes.forEach(function (b) { b.disabled = true; });
+    toast('⛺ 텐트를 걷었다', 'E 로 다시 칠 수 있습니다');
+    return;
+  }
+  var fx = Math.sin(camYaw), fz = Math.cos(camYaw);
+  TENT.pos.set(player.pos.x + fx * 2.2, 0, player.pos.z + fz * 2.2);
+  TENT.group.position.copy(TENT.pos);
+  TENT.group.rotation.y = camYaw + Math.PI;
+  TENT.group.visible = true;
+  TENT.placed = true;
+
+  // 옆면은 막히고 앞은 열려 있다 (몸으로 부딪히는 벽)
+  if (!TENT.boxes.length) {
+    for (var i = 0; i < 3; i++) {
+      boxes.push({ min:{x:0,y:0,z:0}, max:{x:0,y:0,z:0}, tramp:false, name:'텐트', disabled:true });
+      TENT.boxes.push(boxes[boxes.length - 1]);
+    }
+  }
+  var c = TENT.pos, cs = Math.cos(TENT.group.rotation.y), sn = Math.sin(TENT.group.rotation.y);
+  function wall(i, ox, oz, hw, hz2) {            // 텐트 기준 위치 -> 월드
+    var wx = c.x + ox * cs + oz * sn, wz = c.z - ox * sn + oz * cs;
+    var b = TENT.boxes[i];
+    b.min.x = wx - hw; b.max.x = wx + hw;
+    b.min.z = wz - hz2; b.max.z = wz + hz2;
+    b.min.y = 0; b.max.y = 1.3;
+    b.disabled = false;
+  }
+  var along = Math.abs(cs) > Math.abs(sn);
+  wall(0, -1.15, 0, along ? 0.16 : 1.3, along ? 1.3 : 0.16);
+  wall(1,  1.15, 0, along ? 0.16 : 1.3, along ? 1.3 : 0.16);
+  wall(2, 0, -1.25, along ? 1.3 : 0.16, along ? 0.16 : 1.3);
+  toast('⛺ 텐트를 쳤다!', '안에 들어가 있으면 애벌레가 못 봅니다 (E 로 걷기)');
+}
+
+function inTent(p) {
+  if (!TENT || !TENT.placed) return false;
+  return Math.hypot(p.x - TENT.pos.x, p.z - TENT.pos.z) < 1.25 && p.y < 1.3;
+}
+
+/* ------------------------------------------------------------------ *
  *  루프
  * ------------------------------------------------------------------ */
 
@@ -4963,6 +5081,8 @@ function loop(now) {
     updateHpBar();
     updateFruitBars();
     updateStudentBars();
+    updateLantern(dt);
+    if (TENT.cool > 0) TENT.cool -= dt;
     updateHUD();
   }
 
@@ -5016,6 +5136,7 @@ window.FOOD_GAME = {
   DOORS: DOORS, CAR: CAR, LUNCH: LUNCH, startLunch: startLunch,
   CITY: CITY, BUILDINGS: BUILDINGS, CITIZENS: CITIZENS, BALLS: BALLS, fireCannon: fireCannon,
   SFART: SFART, studentFart: studentFart, applyStudentSize: applyStudentSize,
+  TENT: TENT, LANTERN: LANTERN, pitchTent: pitchTent, inTent: inTent,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
