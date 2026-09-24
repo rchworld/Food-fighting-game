@@ -146,7 +146,9 @@
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
       반대쪽(마당 너머 남쪽)으로 <b>300m</b> 가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
-      도시 사람들은 돌아다니다가 가끔 학생을 빤히 쳐다봅니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
+      도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
+      뱃살이 두둑한 학생은 대포알이 배에 묻혔다가 <b>튕겨 나가</b> 쏜 사람이 넘어집니다.
+      빌딩은 <b>문으로 들어갈 수 있고</b>, 안에서 통유리로 바깥 학생들이 보입니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
     </p>
@@ -1782,6 +1784,41 @@ var CITIZENS = [];
     for (var i = 0; i < floors; i++) {
       var y0 = 0.05 + i * h, y1 = y0 + h * 0.92;
       var m = (tall && i % 2) ? glassC : mat(wallC[(i + floors) % wallC.length], 0.9);
+      if (tall && i === 0) {
+        // 빌딩 1층은 속이 비어 있다 — 문으로 들어가고, 창으로 바깥 학생들이 보인다
+        var parts = [], wall = mat(wallC[floors % wallC.length], 0.9);
+        var t = 0.6, doorW = 2.6, yTop = y1;      // 벽은 두툼해야 빠르게 달려도 뚫고 지나가지 않는다
+        function seg(x0, x1, z0, z1, a, bb) {
+          solid(Math.min(x0, x1), Math.max(x0, x1), a, bb,
+                Math.min(z0, z1), Math.max(z0, z1), 0, { material:wall, name:b.name + ' 1층' });
+          parts.push(boxes[boxes.length - 1]);
+        }
+        // 정면(+z)에는 문틈을 남긴다
+        seg(x - w / 2, x - doorW / 2, z + d / 2 - t, z + d / 2, y0, yTop);
+        seg(x + doorW / 2, x + w / 2, z + d / 2 - t, z + d / 2, y0, yTop);
+        seg(x - w / 2, x + w / 2, z - d / 2, z - d / 2 + t, y0, y0 + 1.0);   // 뒷벽 아래
+        seg(x - w / 2, x + w / 2, z - d / 2, z - d / 2 + t, y0 + 2.2, yTop); // 뒷벽 위
+        [-1, 1].forEach(function (sd) {                                      // 옆벽 (가운데는 창)
+          seg(x + sd * (w / 2 - t), x + sd * w / 2, z - d / 2, z + d / 2, y0, y0 + 1.0);
+          seg(x + sd * (w / 2 - t), x + sd * w / 2, z - d / 2, z + d / 2, y0 + 2.2, yTop);
+        });
+        // 창유리 — 안에서 밖이 다 보인다
+        [[0, -d / 2 + t / 2, w - 0.6, 0.12], [0, d / 2 - t / 2, w - 0.6, 0.12]].forEach(function (g2) {
+          var gl = new THREE.Mesh(new THREE.BoxGeometry(g2[2], 1.2, g2[3]), glassC);
+          gl.position.set(x + g2[0], y0 + 1.6, z + g2[1]); scene.add(gl);
+        });
+        [-1, 1].forEach(function (sd) {
+          var gl2 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.2, d - 0.6), glassC);
+          gl2.position.set(x + sd * (w / 2 - t / 2), y0 + 1.6, z); scene.add(gl2);
+        });
+        solid(x - w / 2, x + w / 2, yTop, yTop + 0.16, z - d / 2, z + d / 2, 0,
+              { material:m, name:b.name + ' 1층' });                          // 천장
+        parts.push(boxes[boxes.length - 1]);
+        addDoor(x - doorW / 2, z + d / 2, doorW, 2.4, 0.16, false, 1, 0x6b5a48, b.name + ' 문');
+        b.floors.push({ parts:parts, cut:false });
+        b.door = { x:x, z:z + d / 2 };
+        continue;
+      }
       solid(x - w / 2, x + w / 2, y0, y1, z - d / 2, z + d / 2, 0,
             { material:m, name:b.name + ' ' + (i + 1) + '층' });
       b.floors.push(boxes[boxes.length - 1]);
@@ -1815,7 +1852,7 @@ var CITIZENS = [];
   /* ---- 도시 사람들 ---- */
   var skinC = [0xf3c9a4, 0xe0b189, 0xc79a72, 0xf7d8bb];
   var clothC = [0x51627d, 0x7d5162, 0x4f7d63, 0x7d6f51, 0x63517d];
-  for (var i = 0; i < 14; i++) {
+  for (var i = 0; i < 44; i++) {
     var g = new THREE.Group();
     var body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.95, 12),
       mat(clothC[i % clothC.length], 0.85));
@@ -1827,18 +1864,127 @@ var CITIZENS = [];
       var eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 6), mat(0x161218, 0.4));
       eye.position.set(sd * 0.075, 1.31, 0.2); g.add(eye);
     });
-    var px = CITY.x - 55 + (i * 9) % 110, pz = CITY.z - 30 + (i * 17) % 60;
+    var px = CITY.x - 62 + (i * 13) % 124, pz = CITY.z - 34 + (i * 23) % 68;
+    var cannon = (i % 6 === 0);                 // 여섯에 하나는 대포를 끌고 다닌다
+    if (cannon) {
+      var base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.7), mat(0x4a4a50, 0.6, 0.4));
+      base.position.set(0, 0.2, 0.55); g.add(base);
+      var barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.24, 1.5, 12),
+        mat(0x35353c, 0.45, 0.6));
+      barrel.rotation.x = Math.PI / 2 - 0.16;
+      barrel.position.set(0, 0.55, 1.0); g.add(barrel);
+      [-1, 1].forEach(function (sd) {
+        var wh = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.12, 12), mat(0x2b2b30, 0.6));
+        wh.rotation.z = Math.PI / 2; wh.position.set(sd * 0.48, 0.24, 0.55); g.add(wh);
+      });
+    }
     g.position.set(px, 0, pz);
     scene.add(g);
     CITIZENS.push({ group:g, pos:new THREE.Vector3(px, 0, pz), yaw:0,
                     home:new THREE.Vector3(px, 0, pz),
-                    goal:new THREE.Vector3(px, 0, pz), look:0, t:Math.random() * 4 });
+                    goal:new THREE.Vector3(px, 0, pz), look:0, t:Math.random() * 4,
+                    cannon:cannon, cool:2 + Math.random() * 4, down:0 });
   }
 })();
+
+/* ---- 대포 ---- */
+var BALLS = [];
+
+function fireCannon(p, st) {
+  var mesh = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), mat(0x232329, 0.4, 0.7));
+  scene.add(mesh);
+  var from = new THREE.Vector3(p.pos.x, 1.0, p.pos.z);
+  var to = new THREE.Vector3(st.group.position.x, st.box.max.y * 0.55, st.group.position.z);
+  var dir = to.clone().sub(from).normalize();
+  mesh.position.copy(from);
+  BALLS.push({ mesh:mesh, pos:from, dir:dir, sp:16, owner:p, target:st, back:false, t:0 });
+  p.look = 1.2; p.at = st;
+}
+
+function updateBalls(dt) {
+  for (var i = BALLS.length - 1; i >= 0; i--) {
+    var b = BALLS[i];
+    b.t += dt;
+    var prevX = b.pos.x, prevZ = b.pos.z;
+    if (!b.back && !b.target.thrown) {            // 움직이는 학생을 따라 살짝 겨냥을 고친다
+      var tp = b.target.group.position;
+      var want = new THREE.Vector3(tp.x - b.pos.x, b.target.box.max.y * 0.55 - b.pos.y, tp.z - b.pos.z);
+      if (want.length() > 0.01) b.dir.lerp(want.normalize(), 0.25).normalize();
+    }
+    b.pos.addScaledVector(b.dir, b.sp * dt);
+    b.mesh.position.copy(b.pos);
+    b.mesh.rotation.x += dt * 9;
+
+    if (!b.back) {
+      var st = b.target;
+      if (!st.thrown) {
+        var sp2 = st.group.position;
+        var rr = Math.max(0.6, (st.box.max.x - st.box.min.x) / 2);
+        // 이번 프레임에 지나간 선분과의 거리로 본다 (빠른 대포알이 스쳐 지나가지 않게)
+        var ax = b.pos.x - prevX, az = b.pos.z - prevZ;
+        var len2 = ax * ax + az * az;
+        var tt = len2 > 1e-6 ? Math.max(0, Math.min(1,
+          ((sp2.x - prevX) * ax + (sp2.z - prevZ) * az) / len2)) : 0;
+        var nearD = Math.hypot(prevX + ax * tt - sp2.x, prevZ + az * tt - sp2.z);
+        if (nearD < rr + 0.4 && b.pos.y < st.box.max.y + 0.8) {
+          // 뱃살이 두둑하면 대포알이 배에 푹 묻혔다가 그대로 튕겨 나간다
+          var fat = (st.buildIdx === 0) || st.shown > 4;
+          if (fat) {
+            b.back = true;
+            b.dir.set(b.owner.pos.x - b.pos.x, 0.12, b.owner.pos.z - b.pos.z).normalize();
+            b.sp = 13;
+            b.t = 0;
+            shatter({ x:b.pos.x, y:b.pos.y, z:b.pos.z }, 0xf0d9a0, 6);
+            if (Math.hypot(player.pos.x - b.pos.x, player.pos.z - b.pos.z) < 45)
+              toast('💥 대포가 튕겼다!', st.build + ' 학생의 뱃살에 묻혔다가 되돌아갑니다');
+          } else {
+            sp2.x += b.dir.x * 1.6; sp2.z += b.dir.z * 1.6;   // 맞으면 뒤로 밀린다
+            moveStudentBox(st);
+            shatter({ x:b.pos.x, y:b.pos.y, z:b.pos.z }, 0x9a9aa2, 10);
+            scene.remove(b.mesh); BALLS.splice(i, 1); continue;
+          }
+        }
+      }
+    } else if (Math.hypot(b.pos.x - b.owner.pos.x, b.pos.z - b.owner.pos.z) < 0.9) {
+      b.owner.down = 2.2;                       // 쏜 사람이 제 대포알에 넘어진다
+      shatter({ x:b.pos.x, y:0.8, z:b.pos.z }, 0x9a9aa2, 10);
+      scene.remove(b.mesh); BALLS.splice(i, 1); continue;
+    }
+
+    if (b.t > 6 || b.pos.y < -2) { scene.remove(b.mesh); BALLS.splice(i, 1); }
+  }
+}
 
 /* 도시 사람들 — 돌아다니다가 가끔 학생들을 쳐다본다 */
 function updateCitizens(dt) {
   CITIZENS.forEach(function (p) {
+    if (p.down > 0) {                      // 제 대포알에 맞아 넘어져 있다
+      p.down -= dt;
+      p.group.rotation.z = Math.PI / 2.2;
+      p.group.position.set(p.pos.x, 0.25, p.pos.z);
+      return;
+    }
+    p.group.rotation.z = 0;
+
+    if (p.cannon) {                        // 대포를 학생에게 쏜다
+      p.cool -= dt;
+      var aim = null, ad = 55;
+      STUDENTS.forEach(function (st) {
+        if (st.thrown) return;
+        var d2 = Math.hypot(st.group.position.x - p.pos.x, st.group.position.z - p.pos.z);
+        if (d2 < ad) { ad = d2; aim = st; }
+      });
+      if (aim) {
+        var wy2 = Math.atan2(aim.group.position.x - p.pos.x, aim.group.position.z - p.pos.z);
+        var df2 = ((wy2 - p.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        p.yaw += df2 * Math.min(1, 5 * dt);
+        if (p.cool <= 0 && Math.abs(df2) < 0.4) { fireCannon(p, aim); p.cool = 3 + Math.random() * 3; }
+        p.group.position.copy(p.pos);
+        p.group.rotation.y = p.yaw;
+        return;                            // 쏘는 동안에는 제자리에 선다
+      }
+    }
+
     p.t -= dt;
     if (p.t <= 0) {
       p.t = 3 + Math.random() * 5;
@@ -1874,11 +2020,16 @@ function crushBuilding(b, dt) {
   if (b.melt < 0.45) return;
   b.melt = 0;
   for (var i = b.floors.length - 1; i >= 0; i--) {
-    if (!b.floors[i].cut) {
-      if (i === b.floors.length - 1 && b.roof) { b.roof.visible = false; }
-      smashBox(b.floors[i], '학생');
-      return;
+    var fl = b.floors[i];
+    if (fl.cut) continue;
+    if (i === b.floors.length - 1 && b.roof) b.roof.visible = false;
+    if (fl.parts) {                       // 1층은 방 한 칸이라 벽까지 통째로 무너진다
+      fl.parts.forEach(function (q) { smashBox(q, '학생'); });
+      fl.cut = true;
+    } else {
+      smashBox(fl, '학생');
     }
+    return;
   }
 }
 
@@ -4005,7 +4156,9 @@ function updatePlayer(dt) {
   if (mlen > 1) { mx /= mlen; mz /= mlen; }
 
   // 집 밖 길에서는 학교까지 멀어서 훨씬 빨리 달린다. 자동차를 타면 5배.
-  var onRoad = player.pos.x < -14.2;
+  var inCity = player.pos.x > CITY.minX && player.pos.x < CITY.maxX &&
+               player.pos.z > CITY.minZ && player.pos.z < CITY.maxZ;
+  var onRoad = (player.pos.x < -14.2 || player.pos.z > 40) && !inCity;
   player.carCool -= dt;
   var speed = def.speed * (player.hidden ? 0.55 : 1) *
               (player.inCar ? 5 : (onRoad ? 2.6 : 1));
@@ -4603,6 +4756,7 @@ function loop(now) {
     growStudents(dt);
     updateStudents(dt);
     updateCitizens(dt);
+    updateBalls(dt);
     updateStudentFart(dt);
     updateTeacher(dt);
     updateDoors(dt);
@@ -4660,7 +4814,7 @@ window.FOOD_GAME = {
   repairs: repairs, cutBoxForTest: cutBox,
   HOUSES: HOUSES, STUDENTS: STUDENTS, TEACHER: TEACHER, SCHOOL: SCHOOL,
   DOORS: DOORS, CAR: CAR, LUNCH: LUNCH, startLunch: startLunch,
-  CITY: CITY, BUILDINGS: BUILDINGS, CITIZENS: CITIZENS,
+  CITY: CITY, BUILDINGS: BUILDINGS, CITIZENS: CITIZENS, BALLS: BALLS, fireCannon: fireCannon,
   SFART: SFART, studentFart: studentFart, applyStudentSize: applyStudentSize,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
