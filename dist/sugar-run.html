@@ -2248,10 +2248,10 @@ function applyStudentSize(st) {
       var cx = st.group.position.x, cz = st.group.position.z;
       var hx = Math.max(cx - _sbox.min.x, _sbox.max.x - cx, 0.01);
       var hz = Math.max(cz - _sbox.min.z, _sbox.max.z - cz, 0.01);
-      ratio = Math.min(1,
+      ratio = Math.max(0.02, Math.min(1,
         Math.min(cx - r.minX, r.maxX - cx) / hx,
-        Math.min(cz - r.minZ, r.maxZ - cz) / hz);
-      var ratioY = Math.min(1, (r.maxY - 0.2) / Math.max(0.01, _sbox.max.y - 0.2));
+        Math.min(cz - r.minZ, r.maxZ - cz) / hz));
+      var ratioY = Math.max(0.05, Math.min(1, (r.maxY - 0.2) / Math.max(0.01, _sbox.max.y - 0.2)));
       if (ratio > 0.999 && ratioY > 0.999) break;
       st.blocked = true;
       st.body.scale.x *= ratio; st.body.scale.z *= ratio;   // 옆은 벽까지, 위는 천장까지
@@ -2419,7 +2419,11 @@ function pickStudentMode(st) {
 function updateStudents(dt) {
   STUDENTS.forEach(function (st) {
     if (st.thrown || st.taken) return;
-    if (!st.group.visible) return;        // 화장실에 들어가 있다
+    if (st.inWC) {                        // 화장실에 앉아 있다 — 몸만 들썩인다
+      st.group.position.y = Math.abs(Math.sin(game.time * 2.4)) * 0.05;
+      return;
+    }
+    if (!st.group.visible) return;
     if (st.mode === undefined) {          // 처음에는 자리에 앉아 있다
       st.mode = 'seat'; st.target = { x:st.seat.x, z:st.seat.z };
       st.modeT = 6 + Math.random() * 20;
@@ -2505,10 +2509,10 @@ function updateStudents(dt) {
   for (var pass = 0; pass < 4; pass++)
   for (var a = 0; a < STUDENTS.length; a++) {
     var A = STUDENTS[a];
-    if (A.thrown || A.taken) continue;
+    if (A.thrown || A.taken || A.inWC) continue;
     for (var c = a + 1; c < STUDENTS.length; c++) {
       var B = STUDENTS[c];
-      if (B.thrown || B.taken) continue;
+      if (B.thrown || B.taken || B.inWC) continue;
       var ox = A.group.position.x - B.group.position.x;
       var oz = A.group.position.z - B.group.position.z;
       var od = Math.hypot(ox, oz);
@@ -3401,7 +3405,8 @@ function restart() {
   night.on = false; night.blend = 0;
   SUMMON.phase = null; GIANT.group.visible = false;
   TOILETS.forEach(function (w) { w.user = null; w.t = 0; });
-  STUDENTS.forEach(function (st) { st.group.visible = true; st.urge = 30 + Math.random() * 60; });
+  STUDENTS.forEach(function (st) { st.group.visible = true; st.inWC = null;
+    st.urge = 30 + Math.random() * 60; st.box.disabled = false; });
   SUMMON.blast.visible = false;
   TENT.placed = false; TENT.group.visible = false;
   TENT.boxes.forEach(function (b) { b.disabled = true; });
@@ -5066,6 +5071,8 @@ function updateToilets(dt) {
     var u = w.user;                       // 볼일을 다 봤다 — 시원해져서 나온다
     if (u.kind === 'student') {
       var st = u.st;
+      st.inWC = null;
+      st.room = st.roomLevel ? st.room : st.room0;   // 다시 원래 교실 기준으로
       st.group.visible = true;
       st.group.position.set(w.door.x, 0, w.door.z);
       st.grow *= 0.55;                    // 배가 쑥 꺼진다
@@ -5088,13 +5095,20 @@ function updateToilets(dt) {
   });
 }
 
-/* 급해진 사람을 화장실로 들여보낸다 */
+/* 급해진 사람을 화장실로 들여보낸다 — 안에 있는 모습이 그대로 보인다 */
 function enterToilet(w, user) {
   w.user = user;
   w.t = 4 + Math.random() * 4;
   if (user.kind === 'student') {
-    user.st.group.visible = false;
-    user.st.box.disabled = true;
+    var st = user.st;
+    st.inWC = w;
+    st.pressArm = false;                       // 화장실 벽은 밀어 부수지 않는다
+    st.room = { minX:w.x - 0.62, maxX:w.x + 0.62,   // 칸에 맞게 몸이 쪼그라든다
+                minZ:w.z - 1.05, maxZ:w.z + 0.55, maxY:1.75 };
+    st.group.position.set(w.x, 0, w.z - 0.45);      // 변기에 앉는다
+    st.group.rotation.y = Math.PI;                  // 문 쪽을 본다
+    applyStudentSize(st);
+    st.box.disabled = true;                    // 몸이 문을 막지 않는다 — 과일이 들어가 볼 수 있다
   } else {
     user.f.mesh.visible = false;
   }
