@@ -97,6 +97,7 @@
     <div>👶 아이 위 <b id="lapCount">0</b> / 2</div>
     <div id="childState">😴 자는 중</div>
     <div id="timeOfDay">☀️ 낮</div>
+    <div id="summonState">🌟 소환 아이템 1개 (Q)</div>
     <div id="schoolDist" style="display:none">🏫 학교까지 300m</div>
   </div>
 </div>
@@ -146,6 +147,8 @@
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
       과일은 <b>등잔불</b>을 들고 다녀서 밤에도 멀리까지 보입니다.
       <b>E</b> 를 누르면 앞에 <b>텐트</b>를 치고, 그 안에 있으면 애벌레가 찾지 못합니다(옆에서 E 로 걷기).<br>
+      차를 훔쳐 타면 아이가 쫓아오는데, 그때 <b>Q</b> 로 <b>소환 아이템</b>을 쓰면
+      뱃살이 제일 큰 학생이 아이 앞을 막아서고 <b>엉덩이 방귀</b>로 아이를 집까지 날려 버립니다.<br>
       <b>마당 남쪽 울타리 가운데 대문</b>으로 나가 길을 따라 <b>300m</b> 내려가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
       도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
@@ -2366,8 +2369,6 @@ function studentBlowout(st) {
   st.mode = 'seat';                       // 배가 고프니 밥 먹으러 학교로
   st.target = { x:st.seat.x, z:st.seat.z };
   st.modeT = 60 + Math.random() * 30;
-  if (Math.hypot(player.pos.x - st.group.position.x, player.pos.z - st.group.position.z) < 60)
-    toast('💨💨 엄청난 방귀!', st.build + ' 학생이 홀쭉해져서 밥 먹으러 갑니다');
 }
 
 function hurtStudent(st, dmg) {
@@ -2389,20 +2390,20 @@ function moveStudentBox(st) {
 
 function pickStudentMode(st) {
   var roll = Math.random();
-  if (roll < 0.42) {                     // 교실로 돌아가 앉는다
+  if (roll < 0.34) {                     // 교실로 돌아가 앉는다
     st.mode = 'seat';
     st.target = { x:st.seat.x, z:st.seat.z };
     st.modeT = 8 + Math.random() * 14;
-  } else if (roll < 0.72) {              // 학교 안을 돌아다닌다
+  } else if (roll < 0.6) {               // 학교 안을 돌아다닌다
     st.mode = 'walk';
     st.target = { x:SCHOOL.minX + 2 + Math.random() * (SCHOOL.maxX - SCHOOL.minX - 4),
                   z:SCHOOL.minZ + 2 + Math.random() * (SCHOOL.maxZ - SCHOOL.minZ - 4) };
     st.modeT = 10 + Math.random() * 10;
-  } else if (roll < 0.77) {              // 아주 가끔 도시까지 간다
+  } else if (roll < 0.9) {               // 도시까지 간다 (자주)
     st.mode = 'city';
     st.target = { x:CITY.x + (Math.random() - 0.5) * 100, z:CITY.z + (Math.random() - 0.5) * 70 };
     st.modeT = 70 + Math.random() * 40;
-  } else if (roll < 0.84) {              // 처음 시작한 집까지 간다
+  } else if (roll < 0.96) {              // 처음 시작한 집까지 간다
     st.mode = 'house';
     st.target = { x:2 + (Math.random() - 0.5) * 8, z:12 + (Math.random() - 0.5) * 8 };
     st.modeT = 60 + Math.random() * 30;
@@ -2422,6 +2423,7 @@ function updateStudents(dt) {
       st.modeT = 6 + Math.random() * 20;
     }
 
+    if (st.mode === 'summon') return;        // 소환되어 아이를 막고 서 있다
     st.modeT -= dt;
     if (st.modeT <= 0) pickStudentMode(st);
 
@@ -3239,6 +3241,7 @@ addEventListener('keydown', function (e) {
   keys[e.code] = true;
   if (e.code === 'KeyR') restart();
   if (e.code === 'KeyE' && game.running) pitchTent();
+  if (e.code === 'KeyQ' && game.running) useSummon();
   // 구멍에서 나오기는 누른 순간에 바로 반응한다 (프레임 사이에 놓치지 않도록)
   if (e.code === 'Space' && game.running && player.inHole && player.holeCool <= 0) leaveHole(false);
   if (e.code === 'Space' && game.running && player.inCar && player.carCool <= 0) {
@@ -3350,6 +3353,8 @@ function restart() {
   setSeated(true); setChildAwake(false);
   player.laserT = 0;
   night.on = false; night.blend = 0;
+  SUMMON.count = 1; SUMMON.recharge = 0; SUMMON.phase = null;
+  SUMMON.blast.visible = false;
   TENT.placed = false; TENT.group.visible = false;
   TENT.boxes.forEach(function (b) { b.disabled = true; });
   fart.t = 0; fart.room = null; fart.next = 10 + Math.random() * 12;
@@ -3627,6 +3632,10 @@ function hitCaterpillar(fromPos, byName) {
   var l = Math.hypot(dx, dz) || 1;
   c.pos.x += (dx / l) * 0.7; c.pos.z += (dz / l) * 0.7;
   c.flash = 0.35;
+  var ss = document.getElementById('summonState');
+  ss.innerHTML = SUMMON.count > 0
+    ? '🌟 <b>소환 아이템 ' + SUMMON.count + '개</b> (Q)'
+    : '🌟 소환 아이템 충전 중 ' + Math.ceil(SUMMON.recharge) + '초';
   document.getElementById('catHp').textContent = Math.max(0, c.hp) + '%';
   if (c.hp <= 0) {
     killCaterpillar();
@@ -4133,6 +4142,7 @@ function updateChild(dt) {
     setSeated(false);
     toast('🏃 아이가 차를 쫓아온다!', '보통보다 2.6배로 달려옵니다');
   }
+  if (SUMMON.phase) return;                 // 소환된 학생이 아이를 막고 있다
   if (CHILD.state === 'chase') { updateChase(dt); return; }
 
   if (CHILD.state === 'sleep') {
@@ -4144,10 +4154,7 @@ function updateChild(dt) {
   CHILD.timer -= dt;
 
   /* --- 등교 --- */
-  if (CHILD.state === 'chase') {
-    cs.innerHTML = '🏃 <b>아이가 차를 쫓아온다</b>';
-    cs.style.color = '#ff7a4a';
-  } else if (CHILD.state === 'school') { updateSchoolTrip(dt); return; }
+  if (CHILD.state === 'school') { updateSchoolTrip(dt); return; }
 
   /* --- 안방 화풀이 --- */
   if (CHILD.state === 'tantrum') {
@@ -4933,6 +4940,132 @@ function updateHUD() {
 }
 
 /* ------------------------------------------------------------------ *
+ *  소환 아이템 — Q. 차를 쫓아오는 아이 앞에 뱃살이 제일 큰 학생을 불러낸다.
+ *  학생은 아이 앞에 딱 멈춰 서서, 엉덩이로 아주 큰 방귀를 뿜어 아이를 집까지 날려 버린다.
+ * ------------------------------------------------------------------ */
+
+var SUMMON = {
+  count: 1, recharge: 0, phase: null, t: 0, st: null,
+  item: new THREE.Group(),
+  blast: new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12),
+    new THREE.MeshBasicMaterial({ color:0xe8dc55, transparent:true, opacity:0, depthWrite:false }))
+};
+
+(function buildSummonItem() {
+  var g = SUMMON.item;
+  var orb = new THREE.Mesh(new THREE.IcosahedronGeometry(0.17, 0),
+    new THREE.MeshStandardMaterial({ color:0xffe27a, emissive:0xffa030, emissiveIntensity:0.8,
+                                     roughness:0.3, metalness:0.3 }));
+  g.add(orb);
+  var ring = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.022, 6, 20), mat(0xd8a24a, 0.4, 0.6));
+  ring.rotation.x = Math.PI / 2.2; g.add(ring);
+  g.visible = false;
+  scene.add(g);
+  SUMMON.blast.visible = false;
+  scene.add(SUMMON.blast);
+})();
+
+function useSummon() {
+  if (SUMMON.phase || SUMMON.count <= 0) return;
+  if (CHILD.state !== 'chase') return;             // 아이가 쫓아올 때만 쓸 수 있다
+  var best = null;
+  STUDENTS.forEach(function (st) {                 // 뱃살이 제일 큰 학생
+    if (st.thrown) return;
+    var w = st.shown + (st.buildIdx === 0 ? 6 : 0);
+    if (!best || w > best.w) best = { st:st, w:w };
+  });
+  if (!best) return;
+
+  var st2 = best.st;
+  SUMMON.st = st2;
+  SUMMON.phase = 'stand';
+  SUMMON.t = 1.1;
+  SUMMON.count--;
+  SUMMON.recharge = 40;
+
+  // 아이가 달려오는 바로 앞에 나타나, 엉덩이를 아이 쪽으로 둔다
+  var fx = Math.sin(CHILD.yaw), fz = Math.cos(CHILD.yaw);
+  st2.mode = 'summon'; st2.modeT = 1e9;
+  st2.group.position.set(CHILD.pos.x + fx * 4.0, 0, CHILD.pos.z + fz * 4.0);
+  st2.target = { x:st2.group.position.x, z:st2.group.position.z };
+  st2.group.rotation.y = CHILD.yaw;                // 아이에게 등(엉덩이)을 보인다
+  moveStudentBox(st2);
+  shatter({ x:st2.group.position.x, y:1.0, z:st2.group.position.z }, 0xffe27a, 14);
+}
+
+function updateSummon(dt) {
+  SUMMON.item.visible = SUMMON.count > 0 && !player.inHole;
+  if (SUMMON.item.visible) {                       // 과일이 들고 다닌다
+    var side = camYaw - 1.15, r = charDef().r;
+    SUMMON.item.position.set(player.pos.x + Math.sin(side) * (r + 0.18),
+                             player.pos.y + r * 1.25 + Math.sin(game.time * 2.2) * 0.04,
+                             player.pos.z + Math.cos(side) * (r + 0.18));
+    SUMMON.item.rotation.y += dt * 1.6;
+  }
+  if (SUMMON.count <= 0 && SUMMON.recharge > 0) {
+    SUMMON.recharge -= dt;
+    if (SUMMON.recharge <= 0) SUMMON.count = 1;    // 한참 있으면 다시 쓸 수 있다
+  }
+  if (!SUMMON.phase) return;
+
+  var st = SUMMON.st;
+  SUMMON.t -= dt;
+  st.group.position.y = Math.abs(Math.sin(game.time * 5)) * 0.05;
+
+  if (SUMMON.phase === 'stand') {                  // 아이 앞을 막아선다
+    CHILD.pos.x += (st.group.position.x - CHILD.pos.x) * Math.min(1, dt * 1.2);
+    CHILD.pos.z += (st.group.position.z - CHILD.pos.z) * Math.min(1, dt * 1.2);
+    CHILD.stand.position.set(CHILD.pos.x, 0, CHILD.pos.z);
+    if (SUMMON.t <= 0) {
+      SUMMON.phase = 'blast';
+      SUMMON.t = 1.4;
+      var bx = st.group.position.x - Math.sin(st.group.rotation.y) * 1.2;
+      var bz = st.group.position.z - Math.cos(st.group.rotation.y) * 1.2;
+      SUMMON.blast.position.set(bx, 1.0, bz);      // 엉덩이 쪽에서 터진다
+      SUMMON.blast.visible = true;
+      SUMMON.from = { x:CHILD.pos.x, y:0, z:CHILD.pos.z };
+      SUMMON.flight = 0;
+      // 방귀 바람에 근처 사람도 과일도 휘청인다
+      fruits().forEach(function (t) {
+        var d = Math.hypot(t.pos.x - bx, t.pos.z - bz);
+        if (d < 14 && d > 0.01) {
+          t.obj.vel.x = (t.pos.x - bx) / d * 8;
+          t.obj.vel.z = (t.pos.z - bz) / d * 8;
+          t.obj.vel.y = 4.5; t.obj.launchT = 0.6; t.obj.grounded = false;
+        }
+      });
+    }
+    return;
+  }
+
+  /* 아이가 집까지 붕 날아간다 */
+  SUMMON.flight += dt / 1.4;
+  var k = Math.min(1, SUMMON.flight);
+  CHILD.pos.x = SUMMON.from.x + (SOFA_SPOT.x - SUMMON.from.x) * k;
+  CHILD.pos.z = SUMMON.from.z + (SOFA_SPOT.z - SUMMON.from.z) * k;
+  CHILD.stand.position.set(CHILD.pos.x, Math.sin(Math.PI * k) * 9, CHILD.pos.z);
+  CHILD.stand.rotation.x = k * 26;
+  CHILD.pos.y = 0;
+
+  var f2 = Math.max(0, SUMMON.t / 1.4);
+  SUMMON.blast.scale.setScalar((16 + st.shown) * (1.05 - f2 * 0.55));
+  SUMMON.blast.material.opacity = 0.34 * f2;
+
+  if (k >= 1) {                                    // 집에 떨어져 다시 잠든다
+    SUMMON.blast.visible = false;
+    SUMMON.phase = null;
+    CHILD.stand.rotation.x = 0;
+    CHILD.state = 'sleep';
+    CHILD.timer = 0;
+    CHILD.chaseBack = 'sleep';
+    setSeated(true); setChildAwake(false);
+    st.mode = 'seat';                              // 학생은 제자리로 돌아간다
+    st.target = { x:st.seat.x, z:st.seat.z };
+    st.modeT = 30 + Math.random() * 20;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  *  등잔불과 텐트 — 과일이 늘 들고 다닌다. E 로 텐트를 치고 걷는다.
  * ------------------------------------------------------------------ */
 
@@ -5082,6 +5215,7 @@ function loop(now) {
     updateFruitBars();
     updateStudentBars();
     updateLantern(dt);
+    updateSummon(dt);
     if (TENT.cool > 0) TENT.cool -= dt;
     updateHUD();
   }
@@ -5137,6 +5271,7 @@ window.FOOD_GAME = {
   CITY: CITY, BUILDINGS: BUILDINGS, CITIZENS: CITIZENS, BALLS: BALLS, fireCannon: fireCannon,
   SFART: SFART, studentFart: studentFart, applyStudentSize: applyStudentSize,
   TENT: TENT, LANTERN: LANTERN, pitchTent: pitchTent, inTent: inTent,
+  SUMMON: SUMMON, useSummon: useSummon,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
