@@ -2243,6 +2243,7 @@ function applyStudentSize(st) {
   _sbox.setFromObject(st.group);
   var r = st.room, ratio = 1;
   st.blocked = false;
+  var clampK = 1;
   if (r) {
     for (var pass = 0; pass < 3; pass++) {       // 몇 번 다듬어 벽에 딱 맞춘다
       var cx = st.group.position.x, cz = st.group.position.z;
@@ -2256,13 +2257,14 @@ function applyStudentSize(st) {
       st.blocked = true;
       st.body.scale.x *= ratio; st.body.scale.z *= ratio;   // 옆은 벽까지, 위는 천장까지
       st.body.scale.y *= ratioY;
+      clampK *= Math.min(ratio, ratioY);                   // 머리도 같은 만큼 줄어든다
       st.group.updateMatrixWorld(true);
       _sbox.setFromObject(st.group);
     }
   }
 
   /* 머리는 몸에 묻히지 않는다 — 같이 커지고, 항상 몸 위로 올라온다 */
-  var hk = Math.min(3.2, 1 + cm * 0.055);
+  var hk = Math.min(3.2, 1 + cm * 0.055) * clampK;   // 몸만 줄고 머리통만 남지 않게
   st.head.scale.setScalar(hk);
   _body.setFromObject(st.body);
   st.head.position.y = _body.max.y + hk * st.headR * 0.45 - hk * st.headY;
@@ -2274,7 +2276,7 @@ function applyStudentSize(st) {
     st.box.min.x = _sbox.min.x; st.box.max.x = _sbox.max.x;
     st.box.min.z = _sbox.min.z; st.box.max.z = _sbox.max.z;
     st.box.min.y = 0.2;         st.box.max.y = Math.max(0.5, _sbox.max.y);
-    st.box.disabled = st.thrown;
+    st.box.disabled = st.thrown || !!st.inWC;   // 화장실 안에서는 몸으로 밀지 않는다
   }
 }
 
@@ -5019,37 +5021,38 @@ function updateHUD() {
 var TOILETS = [];
 
 function buildToilet(x, z, name) {
-  var wall = mat(0xe6e2d8, 0.9), t = 0.6, w = 1.9, h = 2.3;   // 벽이 두툼해야 달려도 뚫고 지나가지 않는다
+  var wall = mat(0xe6e2d8, 0.9), t = 0.8, w = 9.0, h = 9.0;   // 뱃살이 아주 큰 학생도 들어오는 큰 화장실
   // 문은 +z 쪽
-  solid(x - w, x - 0.6, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
-  solid(x + 0.6, x + w, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x - w, x - 3.0, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x + 3.0, x + w, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
   solid(x - w, x + w, 0, h, z - w, z - w + t, 0, { material:wall, name:'화장실 벽' });
   solid(x - w, x - w + t, 0, h, z - w, z + w, 0, { material:wall, name:'화장실 벽' });
   solid(x + w - t, x + w, 0, h, z - w, z + w, 0, { material:wall, name:'화장실 벽' });
   solid(x - w, x + w, h, h + 0.18, z - w, z + w, 0, { material:mat(0x8a5a4a, 0.9), name:'화장실 지붕' });
-  var door = addDoor(x - 0.6, z + w - t / 2, 1.2, 2.0, 0.4, false, 1, 0x7a5a3c, name + ' 문');
+  var door = addDoor(x - 3.0, z + w - t / 2, 6.0, 5.2, 0.5, false, 1, 0x7a5a3c, name + ' 문');
 
   // 변기
-  var bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.42, 14), mat(0xf4f6f8, 0.3));
-  bowl.position.set(x, 0.21, z - 0.75); scene.add(bowl);
-  var seat = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.06, 8, 18), mat(0xf4f6f8, 0.3));
-  seat.rotation.x = Math.PI / 2; seat.position.set(x, 0.44, z - 0.75); scene.add(seat);
-  var tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.18), mat(0xf4f6f8, 0.3));
-  tank.position.set(x, 0.65, z - 1.05); scene.add(tank);
+  var bowl = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.25, 2.1, 20), mat(0xf4f6f8, 0.3));
+  bowl.position.set(x, 1.05, z - 5.2); scene.add(bowl);
+  var seat = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.3, 10, 24), mat(0xf4f6f8, 0.3));
+  seat.rotation.x = Math.PI / 2; seat.position.set(x, 2.2, z - 5.2); scene.add(seat);
+  var tank = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.4, 0.9), mat(0xf4f6f8, 0.3));
+  tank.position.set(x, 3.3, z - 6.6); scene.add(tank);
 
   // 표지판 (비어 있으면 초록, 쓰는 중이면 빨강)
   var sign = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.26, 0.06),
     new THREE.MeshBasicMaterial({ color:0x4fae5f }));
-  sign.position.set(x + 0.9, 2.05, z + w + 0.05); scene.add(sign);
+  sign.scale.setScalar(2.4);
+  sign.position.set(x + 4.6, 6.2, z + w + 0.05); scene.add(sign);
 
-  var wc2 = { x:x, z:z, name:name, door:{ x:x, z:z + w + 1.1 }, inside:{ x:x, z:z - 0.2 },
+  var wc2 = { x:x, z:z, name:name, door:{ x:x, z:z + w + 1.6 }, inside:{ x:x, z:z - 0.2 },
               user:null, t:0, sign:sign, doorObj:door };
   TOILETS.push(wc2);
   return wc2;
 }
 
-buildToilet(6.6, 12.0, '집 화장실');
-buildToilet(SCHOOL.maxX + 5.5, SCHOOL.z + 7.5, '학교 화장실');
+buildToilet(11.0, 27.0, '집 화장실');   // 마당 대문 바로 밖
+buildToilet(SCHOOL.maxX + 13.0, SCHOOL.z + 13.0, '학교 화장실');
 
 function freeToilet(x, z, maxD) {
   var best = null, bd = maxD || 70;          // 너무 먼 화장실까지 가지는 않는다
@@ -5103,9 +5106,9 @@ function enterToilet(w, user) {
     var st = user.st;
     st.inWC = w;
     st.pressArm = false;                       // 화장실 벽은 밀어 부수지 않는다
-    st.room = { minX:w.x - 0.62, maxX:w.x + 0.62,   // 칸에 맞게 몸이 쪼그라든다
-                minZ:w.z - 1.05, maxZ:w.z + 0.55, maxY:1.75 };
-    st.group.position.set(w.x, 0, w.z - 0.45);      // 변기에 앉는다
+    st.room = { minX:w.x - 7.6, maxX:w.x + 7.6,     // 아주 큰 칸 — 뱃살이 커도 들어온다
+                minZ:w.z - 7.6, maxZ:w.z + 6.0, maxY:8.3 };
+    st.group.position.set(w.x, 0, w.z - 3.4);       // 변기에 앉는다
     st.group.rotation.y = Math.PI;                  // 문 쪽을 본다
     applyStudentSize(st);
     st.box.disabled = true;                    // 몸이 문을 막지 않는다 — 과일이 들어가 볼 수 있다
