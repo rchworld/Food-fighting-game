@@ -97,6 +97,7 @@
     <div>👶 아이 위 <b id="lapCount">0</b> / 2</div>
     <div id="childState">😴 자는 중</div>
     <div id="timeOfDay">☀️ 낮</div>
+    <div id="roleState">🍓 과일</div>
     <div id="summonState">🌟 소환 (Q)</div>
     <div id="schoolDist" style="display:none">🏫 학교까지 300m</div>
   </div>
@@ -145,6 +146,8 @@
       많이 먹을수록 몸이 불어납니다. 학생 몸은 통과할 수 없고, 책상 옆 발판을 밟으면 책상 위로 올라갑니다.
       학생들의 <b>방귀</b>에 닿으면 과일이 멀리 날아갑니다. 학생이 교실보다 커지면 <b>벽을 부수고</b> 더 자랍니다.
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
+      시작할 때 <b>과일</b>이냐 <b>사람</b>이냐가 무작위로 정해집니다.
+      사람은 애벌레가 쫓지 않는 대신, 학교 급식(식판)을 먹어 배를 불리고 <b>F</b> 로 아주 큰 방귀를 뀝니다.<br>
       <b>화장실</b>은 마당과 학교 옆에 있습니다. 급해진 학생·과일이 들어가고, 한 번에 한 명만 씁니다(나오면 배가 홀쭉).<br>
       과일은 <b>등잔불</b>을 들고 다녀서 밤에도 멀리까지 보입니다.
       <b>E</b> 를 누르면 앞에 <b>텐트</b>를 치고, 그 안에 있으면 애벌레가 찾지 못합니다(옆에서 E 로 걷기).<br>
@@ -2784,6 +2787,30 @@ function launch(pos, vel, b) {
 function makeBody(def) {
   var g = new THREE.Group();
   var r = def.r, body;
+  if (def.shape === 'human') {
+    var skin = mat(def.color, 0.8), cloth = mat(0x4f6ea0, 0.9);
+    var belly = new THREE.Mesh(new THREE.SphereGeometry(r * 0.95, 20, 16), cloth);
+    belly.scale.set(1, 0.9, 0.92); belly.position.y = r * 0.95;
+    belly.castShadow = true; g.add(belly);
+    g.bellyMesh = belly;
+    var chest = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.8, r * 0.7, 14), cloth);
+    chest.position.y = r * 1.9; chest.castShadow = true; g.add(chest);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.55, 18, 14), skin);
+    head.position.y = r * 2.65; head.castShadow = true; g.add(head);
+    g.headMesh = head;
+    var hair = new THREE.Mesh(new THREE.SphereGeometry(r * 0.58, 18, 14, 0, 6.3, 0, 1.2),
+      mat(0x35281f, 0.9));
+    hair.position.y = r * 2.7; g.add(hair);
+    [-1, 1].forEach(function (sd) {
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(r * 0.07, 8, 6), mat(0x161218, 0.4));
+      eye.position.set(sd * r * 0.2, r * 2.68, r * 0.5); g.add(eye);
+      var leg = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.16, r * 0.14, r * 0.8, 10),
+        mat(0x3b4254, 0.9));
+      leg.position.set(sd * r * 0.28, r * 0.4, 0); leg.castShadow = true; g.add(leg);
+    });
+    g.isHuman = true;
+    return g;
+  }
   if (def.shape === 'cube') {
     body = new THREE.Mesh(new THREE.BoxGeometry(r * 1.8, r * 1.8, r * 1.8),
       new THREE.MeshStandardMaterial({ color:def.color, roughness:0.45 }));
@@ -2989,16 +3016,25 @@ var player = {
   carCool: 0
 };
 
+/* 사람 역할 — 게임을 시작할 때 과일이냐 사람이냐가 무작위로 정해진다 */
+var HUMAN = {
+  key:'human', name:'사람', r:0.42, fit:0.16, color:0xe8b98d, shape:'human',
+  speed:3.15, jump:3.35,
+  note:'애벌레가 쫓지 않는다. 급식을 먹어 배를 불리고 F 로 방귀를 뀐다.'
+};
+
 function setCharacter(index) {
   if (player.mesh) scene.remove(player.mesh);
   player.charIndex = index;
   var def = CHARS[index];
+  if (game.role === 'human') def = HUMAN;
   player.mesh = makeBody(def);
   scene.add(player.mesh);
-  document.getElementById('charName').textContent = def.name;
+  document.getElementById('charName').textContent =
+    game.role === 'human' ? '🧑 사람' : '🍓 ' + def.name;
 }
 
-function charDef() { return CHARS[player.charIndex]; }
+function charDef() { return game.role === 'human' ? HUMAN : CHARS[player.charIndex]; }
 
 /* ------------------------------------------------------------------ *
  *  애벌레 (술래) — 블루베리 5개를 이은 크기
@@ -3294,6 +3330,7 @@ addEventListener('keydown', function (e) {
   if (e.code === 'KeyR') restart();
   if (e.code === 'KeyE' && game.running) pitchTent();
   if (e.code === 'KeyQ' && game.running) useSummon();
+  if (e.code === 'KeyF' && game.running) playerFart();
   // 구멍에서 나오기는 누른 순간에 바로 반응한다 (프레임 사이에 놓치지 않도록)
   if (e.code === 'Space' && game.running && player.inHole && player.holeCool <= 0) leaveHole(false);
   if (e.code === 'Space' && game.running && player.inCar && player.carCool <= 0) {
@@ -3351,6 +3388,9 @@ var GRACE = 3.5;   // 시작 직후 애벌레가 아직 눈치채지 못하는 �
 function restart() {
   clearKeys();
   game.running = true; game.time = 0; game.level = 1; game.over = false; game.grace = GRACE;
+  game.role = Math.random() < 0.5 ? 'human' : 'fruit';     // 과일이냐 사람이냐 — 무작위
+  player.belly = 0;
+  pfart.t = 0; PLAYER_FART.visible = false;
   player.pos.set(0, 0, 3.0);
   player.vel.set(0, 0, 0);
   player.yaw = 0;
@@ -3687,6 +3727,10 @@ function hitCaterpillar(fromPos, byName) {
   var l = Math.hypot(dx, dz) || 1;
   c.pos.x += (dx / l) * 0.7; c.pos.z += (dz / l) * 0.7;
   c.flash = 0.35;
+  var rs = document.getElementById('roleState');
+  rs.innerHTML = game.role === 'human'
+    ? '🧑 <b>사람</b> — 배 ' + (player.belly || 0).toFixed(1) + ' (F 방귀)'
+    : '🍓 <b>과일</b> — 애벌레를 피하세요';
   var ss = document.getElementById('summonState');
   ss.innerHTML = SUMMON.phase
     ? '🌟 <b>거인 소환 중!</b>'
@@ -4486,6 +4530,9 @@ function updatePlayer(dt) {
   var moving = Math.hypot(player.vel.x, player.vel.z);
   if (def.shape === 'cube') {
     player.mesh.position.y += Math.abs(Math.sin(game.time * 12)) * moving * 0.012;
+  } else if (player.mesh.isHuman) {
+    player.mesh.rotation.x = 0;                      // 사람은 굴러가지 않는다
+    player.mesh.position.y = player.pos.y + Math.abs(Math.sin(game.time * 7)) * moving * 0.05;
   } else {
     player.mesh.rotation.x = -(game.time * moving * 1.1) % (Math.PI * 2);
   }
@@ -4629,7 +4676,8 @@ function updateCaterpillar(dt) {
   var def = charDef();
   var pd = Math.hypot(c.pos.x - player.pos.x, c.pos.z - player.pos.z);
   var py = player.pos.y + def.r;
-  if (!player.inHole && !safeFromCaterpillar(player.pos) && pd < SEG_R + def.r + 0.06 &&
+  if (game.role !== 'human' &&
+      !player.inHole && !safeFromCaterpillar(player.pos) && pd < SEG_R + def.r + 0.06 &&
       Math.abs(py - (c.pos.y + SEG_R)) < def.r + SEG_R + 0.3) {
     if (mitt.owner === 'player') {
       hitCaterpillar(player.pos, def.name);
@@ -5118,6 +5166,93 @@ function enterToilet(w, user) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  사람 역할 — 급식을 먹으면 배가 나오고, F 로 아주 큰 방귀를 뀐다
+ * ------------------------------------------------------------------ */
+
+var PLAYER_FART = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12),
+  new THREE.MeshBasicMaterial({ color:0xe8dc55, transparent:true, opacity:0, depthWrite:false }));
+PLAYER_FART.visible = false;
+scene.add(PLAYER_FART);
+var pfart = { t:0, r:0 };
+
+function humanBelly(cm) {                      // 배가 앞으로 불룩해진다
+  if (!player.mesh || !player.mesh.bellyMesh) return;
+  var k = 1 + Math.min(6, cm) * 0.16;
+  var b = player.mesh.bellyMesh;
+  b.scale.set(k, 0.9 * (1 + Math.min(6, cm) * 0.05), 0.92 * k);
+}
+
+function updateHuman(dt) {
+  if (game.role !== 'human') return;
+  player.belly = player.belly || 0;
+
+  /* 급식 시간에 책상 위 식판을 집어 먹는다 */
+  if (LUNCH.state !== 'idle' && LUNCH.state !== 'done') {
+    LUNCH.trays.forEach(function (tr) {
+      if (!tr.visible || tr.userData.owner < 0) return;
+      if (Math.hypot(tr.position.x - player.pos.x, tr.position.z - player.pos.z) < 1.6 &&
+          Math.abs(tr.position.y - player.pos.y) < 2.0) {
+        tr.visible = false;
+        tr.userData.owner = -1;
+        player.belly += 0.9;                  // 한 판 먹을 때마다 배가 나온다
+        humanBelly(player.belly);
+        toast('🍱 급식을 먹었다!', '배가 나옵니다 — F 로 방귀를 뀔 수 있습니다 (' +
+              player.belly.toFixed(1) + ')');
+      }
+    });
+  }
+
+  /* 방귀 구름 */
+  if (pfart.t > 0) {
+    pfart.t -= dt;
+    var f = Math.max(0, pfart.t / 1.6);
+    PLAYER_FART.scale.setScalar(pfart.r * (1.05 - f * 0.55));
+    PLAYER_FART.material.opacity = 0.34 * f;
+    PLAYER_FART.visible = pfart.t > 0;
+  }
+}
+
+function playerFart() {
+  if (game.role !== 'human' || !game.running) return;
+  if ((player.belly || 0) < 1) {
+    toast('💨 아직 배가 안 찼다', '학교 급식(식판)을 먹으면 방귀를 뀔 수 있습니다');
+    return;
+  }
+  var r = 6 + player.belly * 3;
+  player.belly = 0;
+  humanBelly(0);
+  pfart.t = 1.6; pfart.r = r;
+  PLAYER_FART.position.set(player.pos.x, 0.8, player.pos.z);
+  PLAYER_FART.visible = true;
+
+  // 과일도 사람도 다 날아간다
+  friends.forEach(function (fr) {
+    if (!fr.alive) return;
+    var d = Math.hypot(fr.pos.x - player.pos.x, fr.pos.z - player.pos.z);
+    if (d < r && d > 0.01) {
+      fr.vel.x = (fr.pos.x - player.pos.x) / d * 9;
+      fr.vel.z = (fr.pos.z - player.pos.z) / d * 9;
+      fr.vel.y = 5; fr.launchT = 0.7; fr.grounded = false;
+    }
+  });
+  CITIZENS.forEach(function (p) {
+    if (Math.hypot(p.pos.x - player.pos.x, p.pos.z - player.pos.z) < r) p.down = 2.2;
+  });
+  STUDENTS.forEach(function (st) {
+    if (st.inWC || st.thrown) return;
+    var d = Math.hypot(st.group.position.x - player.pos.x, st.group.position.z - player.pos.z);
+    if (d < r && d > 0.01) {
+      st.group.position.x += (st.group.position.x - player.pos.x) / d * 2.5;
+      st.group.position.z += (st.group.position.z - player.pos.z) / d * 2.5;
+      moveStudentBox(st);
+    }
+  });
+  // 애벌레도 잠깐 뒤로 밀린다
+  var cd = Math.hypot(caterpillar.pos.x - player.pos.x, caterpillar.pos.z - player.pos.z);
+  if (cd < r) caterpillar.retreat = 3.5;
+}
+
+/* ------------------------------------------------------------------ *
  *  소환 아이템 — Q. 차를 쫓아오는 아이 앞에 뱃살이 제일 큰 학생을 불러낸다.
  *  학생은 아이 앞에 딱 멈춰 서서, 엉덩이로 아주 큰 방귀를 뿜어 아이를 집까지 날려 버린다.
  * ------------------------------------------------------------------ */
@@ -5411,6 +5546,7 @@ function loop(now) {
     updateStudentBars();
     updateLantern(dt);
     updateSummon(dt);
+    updateHuman(dt);
     updateToilets(dt);
     if (TENT.cool > 0) TENT.cool -= dt;
     updateHUD();
@@ -5468,6 +5604,7 @@ window.FOOD_GAME = {
   SFART: SFART, studentFart: studentFart, applyStudentSize: applyStudentSize,
   TENT: TENT, LANTERN: LANTERN, pitchTent: pitchTent, inTent: inTent,
   SUMMON: SUMMON, useSummon: useSummon, GIANT: GIANT, TOILETS: TOILETS,
+  playerFart: playerFart, HUMAN: HUMAN,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
