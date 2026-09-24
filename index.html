@@ -1679,7 +1679,7 @@ scene.add(CAR.group);
       STUDENTS.push({
         group:g, home:g.position.clone(), taken:false, thrown:false,
         build:bd.build, buildIdx:bd.buildIdx,
-        body:bd.group, head:hg, belly:bd.belly,
+        body:bd.group, head:hg, belly:bd.belly, headR:bd.headR,
         bodyScale:bd.group.scale.x, headY:bd.headY,
         desk:new THREE.Vector3(dx, 0.97, dz),
         room:classroomOf(dx + 1.35, dz),
@@ -1802,7 +1802,7 @@ function makeTray(i) {
 }
 
 /* 먹은 만큼 몸이 불어난다 — 뱃살이 먼저 올라오고, 머리가 위로 밀린다 */
-var _sbox = new THREE.Box3();
+var _sbox = new THREE.Box3(), _body = new THREE.Box3();
 
 /* 많이 먹을수록 계속 커지되, 커질수록 완만해진다 (끝이 없다) */
 function fatCurve(cm) {
@@ -1822,7 +1822,6 @@ function applyStudentSize(st) {
     b.scale.set(bs.s.x * roll, bs.s.y * (1 + cm * 0.05), bs.s.z * roll);
     b.position.y = bs.y + cm * 0.035;
   }
-  st.head.position.y = (tall - 1) * st.headY * st.bodyScale + cm * 0.02;
 
   /* 교실 벽·천장을 뚫고 나가지는 않는다 — 벽에 닿으면 거기서 멈춘다 */
   st.group.updateMatrixWorld(true);
@@ -1842,11 +1841,18 @@ function applyStudentSize(st) {
       st.blocked = true;
       st.body.scale.x *= ratio; st.body.scale.z *= ratio;   // 옆은 벽까지, 위는 천장까지
       st.body.scale.y *= ratioY;
-      st.head.position.y *= ratioY;
       st.group.updateMatrixWorld(true);
       _sbox.setFromObject(st.group);
     }
   }
+
+  /* 머리는 몸에 묻히지 않는다 — 같이 커지고, 항상 몸 위로 올라온다 */
+  var hk = Math.min(3.2, 1 + cm * 0.055);
+  st.head.scale.setScalar(hk);
+  _body.setFromObject(st.body);
+  st.head.position.y = _body.max.y + hk * st.headR * 0.45 - hk * st.headY;
+  st.group.updateMatrixWorld(true);
+  _sbox.setFromObject(st.group);
 
   /* 몸에 맞춰 충돌 상자를 갱신한다 */
   if (st.box) {
@@ -1886,11 +1892,21 @@ function burstRoom(st) {
   var wide = { minX:r.minX - 1.2, maxX:r.maxX + 1.2, minZ:r.minZ - 1.2, maxZ:r.maxZ + 1.2 };
   var names = st.roomLevel ? ['학교 벽', '학교 유리창', '학교 지붕', '교실 칸막이']
                            : ['교실 칸막이'];
+  var cx = st.group.position.x, cz = st.group.position.z;
+  var hole = Math.min(2.6, 0.9 + st.shown * 0.05);       // 몸집만큼 큰 구멍
+  var targets = [];
   boxes.forEach(function (b) {
-    if (b.cut || names.indexOf(b.name) < 0) return;
+    if (b.cut || b.disabled || names.indexOf(b.name) < 0) return;
     if (b.max.x < wide.minX || b.min.x > wide.maxX) return;
     if (b.max.z < wide.minZ || b.min.z > wide.maxZ) return;
-    smashBox(b, '학생');                       // 조각조각 재가 되어 남는다
+    targets.push(b);
+  });
+  // 아이와 엄마가 싸울 때처럼, 몸이 눌린 자리에 먼저 구멍이 뻥 뚫린다
+  targets.forEach(function (b) {
+    var px = Math.max(b.min.x, Math.min(b.max.x, cx));
+    var pz = Math.max(b.min.z, Math.min(b.max.z, cz));
+    var py = Math.max(b.min.y + 0.4, Math.min(b.max.y - 0.2, 1.2 + st.shown * 0.05));
+    if (!punchWallHole(px, py, pz, hole, names) && st.roomLevel) smashBox(b, '학생');
   });
 
   if (!st.roomLevel) {
@@ -3208,11 +3224,12 @@ function smashBox(b, who) {
 var wallPieces = [];        // 구멍 때문에 새로 생긴 조각들
 var brokenWalls = [];       // 원래 벽 (재시작 때 되살린다)
 
-function punchWallHole(px, py, pz, r) {
-  var wall = null, bestD = 0.75;
+function punchWallHole(px, py, pz, r, names) {
+  names = names || ['벽', '문틀'];
+  var wall = null, bestD = arguments.length > 4 ? 3.0 : 0.75;
   for (var i = 0; i < boxes.length; i++) {
     var b = boxes[i];
-    if (b.disabled || (b.name !== '벽' && b.name !== '문틀')) continue;
+    if (b.disabled || b.cut || names.indexOf(b.name) < 0) continue;
     var dx = Math.max(b.min.x - px, 0, px - b.max.x);
     var dy = Math.max(b.min.y - py, 0, py - b.max.y);
     var dz = Math.max(b.min.z - pz, 0, pz - b.max.z);
