@@ -144,7 +144,7 @@
       많이 먹을수록 몸이 불어납니다. 학생 몸은 통과할 수 없고, 책상 옆 발판을 밟으면 책상 위로 올라갑니다.
       학생들의 <b>방귀</b>에 닿으면 과일이 멀리 날아갑니다. 학생이 교실보다 커지면 <b>벽을 부수고</b> 더 자랍니다.
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
-      반대쪽(마당 너머 남쪽)으로 <b>300m</b> 가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
+      <b>마당 남쪽 울타리 가운데 대문</b>으로 나가 길을 따라 <b>300m</b> 내려가면 집이 아주 많은 <b>도시</b>가 있고 빌딩도 서 있습니다.
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
       도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
       뱃살이 두둑한 학생은 대포알이 배에 묻혔다가 <b>튕겨 나가</b> 쏜 사람이 넘어집니다.
@@ -332,7 +332,8 @@ solid(-1.0,  1.0, 2.1, 3, 5.0, 5.2, 0, { material:wallMat, name:'문틀' });
 
 // 마당 울타리
 var fenceMat = mat(0xa9855c, 0.9);
-solid(-9.0, 9.0, 0, 0.9, 17.8, 18.0, 0, { material:fenceMat, name:'울타리' });
+solid(-9.0, -1.6, 0, 0.9, 17.8, 18.0, 0, { material:fenceMat, name:'울타리' });
+solid( 1.6,  9.0, 0, 0.9, 17.8, 18.0, 0, { material:fenceMat, name:'울타리' });   // 가운데는 도시로 나가는 대문
 solid(-9.0, -8.8, 0, 0.9, 5.0, 18.0, 0, { material:fenceMat, name:'울타리' });
 solid( 8.8,  9.0, 0, 0.9, 5.0, 18.0, 0, { material:fenceMat, name:'울타리' });
 
@@ -880,12 +881,14 @@ scene.add(petArch);
   var post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 8), mat(0x7a5c3c, 0.9));
   post.position.set(-17.5, 1.1, -7.6); post.castShadow = true; scene.add(post);
   var c = document.createElement('canvas');
-  c.width = 256; c.height = 96;
+  c.width = 256; c.height = 112;
   var g2 = c.getContext('2d');
-  g2.fillStyle = '#3f6b4a'; g2.fillRect(0, 0, 256, 96);
+  g2.fillStyle = '#3f6b4a'; g2.fillRect(0, 0, 256, 112);
   g2.fillStyle = '#f2f6ee'; g2.font = 'bold 44px sans-serif'; g2.textAlign = 'center';
-  g2.fillText('← 학교 300m', 128, 62);
-  var board = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.75, 0.08),
+  g2.fillText('← 학교 300m', 128, 42);
+  g2.font = 'bold 34px sans-serif';
+  g2.fillText('도시 300m ↓', 128, 84);
+  var board = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.9, 0.08),
     new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c) }));
   board.position.set(-17.5, 2.0, -7.6); scene.add(board);
 })();
@@ -1885,6 +1888,61 @@ var CITIZENS = [];
                     goal:new THREE.Vector3(px, 0, pz), look:0, t:Math.random() * 4,
                     cannon:cannon, cool:2 + Math.random() * 4, down:0 });
   }
+})();
+
+/* ---- 마당 대문에서 도시까지 이어지는 길 ---- */
+(function cityRoad() {
+  var z0 = 18, z1 = CITY.z - 30;                    // 마당 대문 -> 도시 입구
+  var len = z1 - z0;
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(90, len + 20),
+    new THREE.MeshStandardMaterial({ color:0x6f8f5a, roughness:1 }));
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, -0.02, z0 + len / 2);
+  ground.receiveShadow = true; scene.add(ground);
+
+  var road = new THREE.Mesh(new THREE.PlaneGeometry(6.2, len),
+    new THREE.MeshStandardMaterial({ color:0x4b4a4d, roughness:0.95 }));
+  road.rotation.x = -Math.PI / 2;
+  road.position.set(0, 0.005, z0 + len / 2);
+  road.receiveShadow = true; scene.add(road);
+
+  for (var m = 0; m * 6 < len; m++) {               // 중앙선
+    var dash = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 2.6),
+      new THREE.MeshBasicMaterial({ color:0xe8e2c8 }));
+    dash.rotation.x = -Math.PI / 2;
+    dash.position.set(0, 0.012, z0 + 3 + m * 6);
+    scene.add(dash);
+  }
+
+  // 가로수와 가로등 — 길을 눈으로 따라갈 수 있게
+  for (var k = 0; k * 22 < len; k++) {
+    [-5.2, 5.2].forEach(function (sx, si) {
+      var zz = z0 + 12 + k * 22 + si * 11;
+      if (zz > z1) return;
+      var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.22, 2.2, 8), mat(0x6b4a2c, 0.95));
+      trunk.position.set(sx, 1.1, zz); trunk.castShadow = true; scene.add(trunk);
+      var leaf = new THREE.Mesh(new THREE.SphereGeometry(1.25, 12, 10), mat(0x4f7a3c, 0.95));
+      leaf.position.set(sx, 2.7, zz); leaf.castShadow = true; scene.add(leaf);
+    });
+  }
+
+  // 길 따라 서 있는 표지판 — 남은 거리를 알려 준다
+  function sign(z, text) {
+    var post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 8), mat(0x7a5c3c, 0.9));
+    post.position.set(3.6, 1.1, z); post.castShadow = true; scene.add(post);
+    var c = document.createElement('canvas');
+    c.width = 256; c.height = 96;
+    var g2 = c.getContext('2d');
+    g2.fillStyle = '#3f5a6b'; g2.fillRect(0, 0, 256, 96);
+    g2.fillStyle = '#f2f6ee'; g2.font = 'bold 40px sans-serif'; g2.textAlign = 'center';
+    g2.fillText(text, 128, 60);
+    var board = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.75, 0.08),
+      new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c) }));
+    board.position.set(3.6, 2.0, z); scene.add(board);
+  }
+  sign(20, '도시 300m ↓');
+  for (var q = 60; q < z1 - 20; q += 60) sign(q, '도시 ' + Math.round(CITY.z - q) + 'm ↓');
+  sign(z1 - 6, '도시 입구');
 })();
 
 /* ---- 대포 ---- */
@@ -4686,6 +4744,11 @@ function updateHUD() {
                    '<br><span style="opacity:.65">' +
                    (player.inCar ? '🚗 <b>엄마 차</b> — 5배 (Space 로 내리기)' : '🏃 길에서는 2.6배로 달립니다') +
                    '</span>';
+  } else if (player.pos.z > 19) {
+    var toCity = Math.max(0, (CITY.minZ + 30) - player.pos.z);
+    sd.style.display = '';
+    sd.innerHTML = (toCity > 1 ? '🏙️ 도시까지 <b>' + Math.round(toCity) + 'm</b>' : '🏙️ <b>도시 도착</b>') +
+                   '<br><span style="opacity:.65">🏃 길에서는 2.6배로 달립니다</span>';
   } else {
     sd.style.display = 'none';
   }
