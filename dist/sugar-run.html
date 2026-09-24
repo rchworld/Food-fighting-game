@@ -140,7 +140,8 @@
       집 앞에 <b>엄마 자동차</b>가 세워져 있습니다. 몸을 대면 훔쳐 타고 <b>5배</b>로 달립니다
       (Space 로 내립니다). 다만 <b>차를 타면 아이가 2.6배로 쫓아옵니다.</b>
       걸어가면 길에서는 2.6배로 달립니다. 서쪽으로 <b>300m</b> 가면 학교가 나오는데,
-      안경 쓴 할머니 선생님이 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 던져
+      학교에 가까이 가면 <b>급식시간</b>이 열려 학생들이 서로 식판을 훔치고, 많이 먹을수록 몸이 불어납니다.
+      그다음 안경 쓴 할머니 선생님이 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 던져
       <b>길가 집을 한 채씩</b> 무너뜨립니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
@@ -1159,6 +1160,10 @@ function freeStudent() {
 
 function updateTeacher(dt) {
   var t = TEACHER;
+  // 급식시간에는 선생님도 기다린다
+  if (LUNCH.state !== 'idle' && LUNCH.state !== 'done') {
+    t.group.position.copy(t.pos); t.group.rotation.y = t.yaw; return;
+  }
 
   /* --- 학생이 날아가는 중 --- */
   if (t.flight) {
@@ -1619,7 +1624,8 @@ scene.add(CAR.group);
     }
 
     g.scale.setScalar(jitter);
-    return { group:g, headY:headY * jitter, headR:headR * jitter, build:BUILDS[build] };
+    return { group:g, headY:headY * jitter, headR:headR * jitter,
+             build:BUILDS[build], buildIdx:build, belly:g.children[0] };
   }
 
   // 책상과 앉아 있는 학생들
@@ -1634,19 +1640,28 @@ scene.add(CAR.group);
       var g = new THREE.Group();
       var bd = studentBody(idx);
       g.add(bd.group);
+      var hg = new THREE.Group();                 // 머리 — 배가 커지면 위로 밀려 올라간다
       var head = new THREE.Mesh(new THREE.SphereGeometry(bd.headR, 16, 12), skin);
-      head.position.y = bd.headY; head.castShadow = true; g.add(head);
+      head.position.y = bd.headY; head.castShadow = true; hg.add(head);
       var hair = new THREE.Mesh(new THREE.SphereGeometry(bd.headR * 1.04, 16, 12, 0, 6.3, 0,
         1.05 + (idx % 3) * 0.16), mat(HAIR[idx % HAIR.length], 0.9));
-      hair.position.y = bd.headY + 0.03; g.add(hair);
+      hair.position.y = bd.headY + 0.03; hg.add(hair);
       [-1, 1].forEach(function (sd) {
         var eye = new THREE.Mesh(new THREE.SphereGeometry(bd.headR * 0.13, 8, 6), mat(0x161218, 0.4));
-        eye.position.set(sd * bd.headR * 0.36, bd.headY + 0.02, bd.headR * 0.92); g.add(eye);
+        eye.position.set(sd * bd.headR * 0.36, bd.headY + 0.02, bd.headR * 0.92); hg.add(eye);
       });
+      g.add(hg);
       g.position.set(dx + 1.35, 0, dz);
       g.rotation.y = -Math.PI / 2;
       scene.add(g);
-      STUDENTS.push({ group:g, home:g.position.clone(), taken:false, thrown:false, build:bd.build });
+      STUDENTS.push({
+        group:g, home:g.position.clone(), taken:false, thrown:false,
+        build:bd.build, buildIdx:bd.buildIdx,
+        body:bd.group, head:hg, belly:bd.belly,
+        bodyScale:bd.group.scale.x, headY:bd.headY,
+        desk:new THREE.Vector3(dx, 0.97, dz),
+        trays:0, grow:0, shown:0
+      });
     }
   }
 })();
@@ -1700,6 +1715,227 @@ scene.add(TEACHER.group);
   var mouth = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.03), mat(0x8a4a44, 0.6));
   mouth.position.set(0, 2.33, 0.37); g.add(mouth);
 })();
+
+/* ------------------------------------------------------------------ *
+ *  급식시간 — 식판을 책상에 내려놓고, 서로 남의 식판을 훔친다
+ *  식판 1개 0.2cm, 2개째 0.4, 3개째 0.6, 4개째 0.8, 그 뒤로는 1.0cm씩 커진다
+ * ------------------------------------------------------------------ */
+
+var TRAY_CM   = [0.2, 0.4, 0.6, 0.8, 1.0];   // n번째 식판으로 커지는 양(cm)
+var GROW_CAP  = 3.0;                          // 보통 학생이 커질 수 있는 한도(cm)
+var FAT_MULT  = 2.4;                          // 뚱뚱한 학생은 한도를 넘어 훨씬 더 커진다
+var FAT_CAP   = 7.2;                          // 그래도 배가 터지진 않는다
+var MAX_TRAYS = 6;                            // 한 사람이 쌓을 수 있는 식판 수
+var CM_WIDE   = 0.17;                         // 1cm당 몸 굵기
+var CM_TALL   = 0.055;                        // 1cm당 키
+
+function trayGrowth(n) {                      // 식판 n개를 먹었을 때 커진 총량(cm)
+  var sum = 0;
+  for (var i = 0; i < n; i++) sum += TRAY_CM[Math.min(i, TRAY_CM.length - 1)];
+  return sum;
+}
+
+var LUNCH = {
+  state: 'idle',        // idle | serve | eat | steal | done
+  t: 0,
+  next: 0,
+  trays: [],
+  flying: null,
+  group: new THREE.Group()
+};
+scene.add(LUNCH.group);
+
+function makeTray(i) {
+  var g = new THREE.Group();
+  var plate = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.05, 0.44),
+    mat(0xd9dde2, 0.35, 0.45));
+  plate.castShadow = true; g.add(plate);
+  // 칸막이 안에 담긴 밥·국·반찬
+  var FOODS = [[-0.18, -0.1, 0.2, 0.16, 0xf4f1e8],   // 밥
+               [-0.18,  0.12, 0.2, 0.14, 0xc4703a],  // 국
+               [ 0.13, -0.12, 0.16, 0.12, 0x6fa04a], // 나물
+               [ 0.13,  0.11, 0.16, 0.12, 0xd0b23c]];// 반찬
+  FOODS.forEach(function (f, k) {
+    var c = new THREE.Mesh(new THREE.BoxGeometry(f[2], 0.07, f[3]),
+      mat(f[4], 0.8));
+    c.position.set(f[0], 0.05, f[1]);
+    if (k === 1) c.scale.y = 1.3;
+    g.add(c);
+  });
+  g.rotation.y = (i % 3 - 1) * 0.12;
+  g.visible = false;
+  LUNCH.group.add(g);
+  return g;
+}
+
+/* 먹은 만큼 몸이 불어난다 — 뱃살이 먼저 올라오고, 머리가 위로 밀린다 */
+function applyStudentSize(st) {
+  var cm = st.shown;
+  var wide = 1 + cm * CM_WIDE, tall = 1 + cm * CM_TALL;
+  st.body.scale.set(st.bodyScale * wide, st.bodyScale * tall, st.bodyScale * wide);
+  if (st.belly) {
+    // 배는 몸보다 더 부풀고, 살이 위로 차올라 가슴 쪽으로 밀려 올라간다
+    var b = st.belly;
+    if (!b.userData.base) b.userData.base = { s: b.scale.clone(), y: b.position.y };
+    var bs = b.userData.base;
+    var roll = 1 + cm * 0.11;
+    b.scale.set(bs.s.x * roll, bs.s.y * (1 + cm * 0.05), bs.s.z * roll);
+    b.position.y = bs.y + cm * 0.035;
+  }
+  st.head.position.y = (tall - 1) * st.headY * st.bodyScale + cm * 0.02;
+}
+
+function startLunch() {
+  if (LUNCH.state !== 'idle') return;
+  LUNCH.state = 'serve';
+  LUNCH.t = 0; LUNCH.next = 0; LUNCH.flying = null;
+  STUDENTS.forEach(function (st, i) {
+    if (!LUNCH.trays[i]) LUNCH.trays[i] = makeTray(i);
+    st.trays = 0; st.grow = 0; st.shown = 0;
+    applyStudentSize(st);
+    var tr = LUNCH.trays[i];
+    tr.visible = false;
+    tr.userData.owner = i;      // 지금 이 식판이 놓인 책상
+    tr.position.set(st.desk.x, st.desk.y, st.desk.z);
+  });
+  toast('🍱 급식시간!', '다들 식판을 책상에 내려놓습니다');
+}
+
+/* 그 책상에 쌓인 식판을 가지런히 놓는다 */
+function stackTrays(owner) {
+  var n = 0;
+  LUNCH.trays.forEach(function (tr) {
+    if (tr.userData.owner !== owner || (LUNCH.flying && LUNCH.flying.tray === tr)) return;
+    var st = STUDENTS[owner];
+    tr.position.set(st.desk.x + (n % 2) * 0.05, st.desk.y + n * 0.09, st.desk.z + (n - 0.5) * 0.06);
+    n++;
+  });
+}
+
+function trayCount(i) {
+  var n = 0;
+  LUNCH.trays.forEach(function (tr) { if (tr.userData.owner === i) n++; });
+  return n;
+}
+
+/* 도둑은 뚱뚱한 학생일수록 잘 훔친다 */
+function pickThief(victim) {
+  var best = null, bestW = -1;
+  STUDENTS.forEach(function (st, i) {
+    if (i === victim || st.thrown || st.taken) return;
+    if (trayCount(i) >= MAX_TRAYS) return;          // 책상에 더 쌓을 자리가 없다
+    var w = Math.random() * (st.buildIdx === 0 ? 3.2 : st.buildIdx === 1 ? 1.6 : 1);
+    if (w > bestW) { bestW = w; best = i; }
+  });
+  return best;
+}
+
+/* 누구든 학교 가까이 오면 그때 급식시간이 시작된다 */
+var lunchArmed = false;
+function armLunch() {
+  if (lunchArmed || LUNCH.state !== 'idle') return;
+  var near = [player.pos, CHILD.pos].some(function (q) {
+    return Math.hypot(q.x - SCHOOL.x, q.z - SCHOOL.z) < 70;
+  });
+  if (near) { lunchArmed = true; startLunch(); }
+}
+
+function updateLunch(dt) {
+  if (LUNCH.state === 'idle' || LUNCH.state === 'done') return;
+  LUNCH.t += dt;
+
+  /* 식판이 날아가는 중 */
+  if (LUNCH.flying) {
+    var f = LUNCH.flying;
+    f.t += dt;
+    var k = Math.min(1, f.t / 0.45);
+    f.tray.position.set(f.from.x + (f.to.x - f.from.x) * k,
+                        f.from.y + (f.to.y - f.from.y) * k + Math.sin(Math.PI * k) * 0.6,
+                        f.from.z + (f.to.z - f.from.z) * k);
+    if (k >= 1) {
+      f.tray.userData.owner = f.to2;
+      LUNCH.flying = null;
+      stackTrays(f.to2); stackTrays(f.from2);
+      feedStudent(f.to2);
+    }
+  }
+
+  /* 커진 몸은 부드럽게 따라온다 */
+  STUDENTS.forEach(function (st) {
+    if (st.shown !== st.grow) {
+      st.shown += (st.grow - st.shown) * Math.min(1, dt * 2.2);
+      if (Math.abs(st.grow - st.shown) < 0.002) st.shown = st.grow;
+      applyStudentSize(st);
+    }
+  });
+
+  LUNCH.next -= dt;
+  if (LUNCH.next > 0 || LUNCH.flying) return;
+
+  if (LUNCH.state === 'serve') {
+    /* 한 명씩 자기 식판을 책상에 내려놓는다 */
+    var put = -1;
+    for (var i = 0; i < LUNCH.trays.length; i++) {
+      if (!LUNCH.trays[i].visible) { put = i; break; }
+    }
+    if (put < 0) { LUNCH.state = 'eat'; LUNCH.next = 0.6; return; }
+    LUNCH.trays[put].visible = true;
+    LUNCH.trays[put].userData.owner = put;
+    stackTrays(put);
+    LUNCH.next = 0.18;
+
+  } else if (LUNCH.state === 'eat') {
+    /* 자기 식판을 먹는다 — 0.2cm씩 커진다 */
+    var eat = -1;
+    for (var j = 0; j < STUDENTS.length; j++) {
+      if (STUDENTS[j].trays === 0) { eat = j; break; }
+    }
+    if (eat < 0) {
+      LUNCH.state = 'steal'; LUNCH.next = 0.8;
+      toast('🍽️ 식판 쟁탈전!', '다들 남의 식판을 훔칩니다');
+      return;
+    }
+    feedStudent(eat);
+    LUNCH.next = 0.22;
+
+  } else {
+    /* 남의 식판을 훔친다 */
+    if (LUNCH.t > 34) {
+      LUNCH.state = 'done';
+      var fat = STUDENTS.slice().sort(function (a, b) { return b.grow - a.grow; })[0];
+      toast('🍱 급식 끝!', '제일 많이 먹은 학생은 ' + fat.build + ' 학생 (' +
+            fat.trays + '판, +' + fat.grow.toFixed(1) + 'cm)');
+      return;
+    }
+    var victims = [];
+    STUDENTS.forEach(function (st, i) { if (trayCount(i) > 0 && !st.thrown) victims.push(i); });
+    if (!victims.length) { LUNCH.next = 0.6; return; }
+    var v = victims[Math.floor(Math.random() * victims.length)];
+    var th = pickThief(v);
+    if (th === null) { LUNCH.next = 0.6; return; }
+    var steal = null;
+    for (var q = 0; q < LUNCH.trays.length; q++) {
+      if (LUNCH.trays[q].userData.owner === v) { steal = LUNCH.trays[q]; break; }
+    }
+    if (!steal) { LUNCH.next = 0.4; return; }
+    LUNCH.flying = {
+      tray: steal, t: 0, from2: v, to2: th,
+      from: steal.position.clone(),
+      to: new THREE.Vector3(STUDENTS[th].desk.x, STUDENTS[th].desk.y + 0.2, STUDENTS[th].desk.z)
+    };
+    LUNCH.next = 0.5;
+  }
+}
+
+/* 식판 하나를 더 먹었다 */
+function feedStudent(i) {
+  var st = STUDENTS[i];
+  st.trays++;
+  var cm = trayGrowth(st.trays);
+  if (st.buildIdx === 0) cm = Math.min(FAT_CAP, cm * FAT_MULT);   // 한도를 훌쩍 넘는다
+  else cm = Math.min(GROW_CAP, cm);
+  st.grow = Math.max(st.grow, cm);
+}
 
 /* ---- 트램펄린 4개 ---- */
 // 트램펄린: 최고점(apexY)까지 솟구치면서, 그 시점에 착지 지점(landX, landZ) 위에 오도록
@@ -2252,7 +2488,12 @@ function restart() {
     st.taken = false; st.thrown = false;
     st.group.position.copy(st.home);
     st.group.rotation.set(0, -Math.PI / 2, 0);
+    st.trays = 0; st.grow = 0; st.shown = 0;
+    applyStudentSize(st);
   });
+  LUNCH.state = 'idle'; LUNCH.t = 0; LUNCH.flying = null;
+  LUNCH.trays.forEach(function (tr) { tr.visible = false; });
+  lunchArmed = false;
   MOM.group.rotation.x = 0; MOM.group.rotation.z = 0;
   MOM.arms.forEach(function (a) { a.rotation.x = 0; });
   CHILD.stand.rotation.z = 0;
@@ -3834,6 +4075,8 @@ function loop(now) {
     updateRepairs(dt);
     updateChild(dt);
     updateMom(dt);
+    armLunch();
+    updateLunch(dt);
     updateTeacher(dt);
     updateDoors(dt);
     updateFart(dt);
@@ -3889,7 +4132,7 @@ window.FOOD_GAME = {
   night: night, brokenWalls: brokenWalls, wallPieces: wallPieces, punchWallHole: punchWallHole,
   repairs: repairs, cutBoxForTest: cutBox,
   HOUSES: HOUSES, STUDENTS: STUDENTS, TEACHER: TEACHER, SCHOOL: SCHOOL,
-  DOORS: DOORS, CAR: CAR,
+  DOORS: DOORS, CAR: CAR, LUNCH: LUNCH, startLunch: startLunch,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
