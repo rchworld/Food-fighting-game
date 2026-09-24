@@ -1717,10 +1717,9 @@ scene.add(TEACHER.group);
  * ------------------------------------------------------------------ */
 
 var TRAY_CM   = [0.2, 0.4, 0.6, 0.8, 1.0];   // n번째 식판으로 커지는 양(cm)
-var GROW_CAP  = 3.0;                          // 보통 학생이 커질 수 있는 한도(cm)
-var FAT_MULT  = 2.4;                          // 뚱뚱한 학생은 한도를 넘어 훨씬 더 커진다
-var FAT_CAP   = 7.2;                          // 그래도 배가 터지진 않는다
-var MAX_TRAYS = 6;                            // 한 사람이 쌓을 수 있는 식판 수
+var GROW_CAP  = 3.0;                          // 보통 학생의 기준 한도(cm) — 넘어서도 계속 큰다
+var FAT_MULT  = 2.4;                          // 뚱뚱한 학생은 처음부터 한도를 훌쩍 넘는다
+var OVER_RATE = 0.45;                         // 한도를 넘은 뒤에도 이만큼씩 계속 불어난다
 var CM_WIDE   = 0.17;                         // 1cm당 몸 굵기
 var CM_TALL   = 0.055;                        // 1cm당 키
 
@@ -1767,8 +1766,13 @@ function makeTray(i) {
 }
 
 /* 먹은 만큼 몸이 불어난다 — 뱃살이 먼저 올라오고, 머리가 위로 밀린다 */
+/* 많이 먹을수록 계속 커지되, 커질수록 완만해진다 (끝이 없다) */
+function fatCurve(cm) {
+  return cm <= 6 ? cm : 6 + 6 * Math.log(1 + (cm - 6) / 6);
+}
+
 function applyStudentSize(st) {
-  var cm = st.shown;
+  var cm = fatCurve(st.shown);
   var wide = 1 + cm * CM_WIDE, tall = 1 + cm * CM_TALL;
   st.body.scale.set(st.bodyScale * wide, st.bodyScale * tall, st.bodyScale * wide);
   if (st.belly) {
@@ -1821,7 +1825,6 @@ function pickThief(victim) {
   var best = null, bestW = -1;
   STUDENTS.forEach(function (st, i) {
     if (i === victim || st.thrown || st.taken) return;
-    if (trayCount(i) >= MAX_TRAYS) return;          // 책상에 더 쌓을 자리가 없다
     var w = Math.random() * (st.buildIdx === 0 ? 3.2 : st.buildIdx === 1 ? 1.6 : 1);
     if (w > bestW) { bestW = w; best = i; }
   });
@@ -1944,8 +1947,9 @@ function feedStudent(i) {
   var st = STUDENTS[i];
   st.trays++;
   var cm = trayGrowth(st.trays);
-  if (st.buildIdx === 0) cm = Math.min(FAT_CAP, cm * FAT_MULT);   // 한도를 훌쩍 넘는다
-  else cm = Math.min(GROW_CAP, cm);
+  if (st.buildIdx === 0) cm *= FAT_MULT;                     // 뚱뚱한 학생은 훨씬 빨리 분다
+  // 한도를 넘어도 멈추지 않는다 — 넘은 만큼은 천천히 계속 불어난다
+  if (cm > GROW_CAP) cm = GROW_CAP + (cm - GROW_CAP) * OVER_RATE;
   st.grow = Math.max(st.grow, cm);
 }
 
