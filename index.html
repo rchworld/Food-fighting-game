@@ -1904,8 +1904,7 @@ function updateLunch(dt) {
       if (!STUDENTS[j].served) { eat = j; break; }
     }
     if (eat < 0) {
-      LUNCH.state = 'steal'; LUNCH.next = 0.8;
-      toast('🍽️ 식판 쟁탈전!', '다들 남의 식판을 훔칩니다');
+      LUNCH.state = 'steal'; LUNCH.next = 0.8;   // 쟁탈전은 조용히 시작된다
       return;
     }
     STUDENTS[eat].served = true;
@@ -1916,10 +1915,7 @@ function updateLunch(dt) {
     /* 남의 식판을 훔친다 */
     if (LUNCH.t > 14) {
       LUNCH.state = 'done';
-      LUNCH.wait = Math.max(3, LUNCH_EVERY - LUNCH.t);
-      var fat = STUDENTS.slice().sort(function (a, b) { return b.grow - a.grow; })[0];
-      toast('🍱 급식 끝!', '제일 많이 먹은 학생은 ' + fat.build + ' 학생 (' +
-            fat.trays + '판, +' + fat.grow.toFixed(1) + 'cm) — 다음 급식은 곧');
+      LUNCH.wait = Math.max(3, LUNCH_EVERY - LUNCH.t);   // 승자 발표 없이 조용히 끝난다
       return;
     }
     var victims = [];
