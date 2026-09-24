@@ -142,7 +142,8 @@
       걸어가면 길에서는 2.6배로 달립니다. 서쪽으로 <b>300m</b> 가면 학교가 나오는데,
       학교에서는 <b>20초에 한 번씩 급식시간</b>이 열려 학생들이 서로 식판을 훔치고,
       많이 먹을수록 몸이 불어납니다. 학생 몸은 통과할 수 없고, 책상 옆 발판을 밟으면 책상 위로 올라갑니다.
-      학생들의 <b>방귀</b>에 닿으면 과일이 멀리 날아갑니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
+      학생들의 <b>방귀</b>에 닿으면 과일이 멀리 날아갑니다. 학생이 교실보다 커지면 <b>벽을 부수고</b> 더 자랍니다.
+      다른 과일들도 가끔 학교에 다녀옵니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
     </p>
@@ -1682,6 +1683,8 @@ scene.add(CAR.group);
         bodyScale:bd.group.scale.x, headY:bd.headY,
         desk:new THREE.Vector3(dx, 0.97, dz),
         room:classroomOf(dx + 1.35, dz),
+        room0:classroomOf(dx + 1.35, dz),
+        roomLevel:0, press:0, pressArm:false,
         trays:0, grow:0, shown:0
       });
       // 몸통에 부딪히는 충돌 상자 — 과일도 아이도 학생 몸을 통과하지 못한다
@@ -1824,6 +1827,7 @@ function applyStudentSize(st) {
   st.group.updateMatrixWorld(true);
   _sbox.setFromObject(st.group);
   var r = st.room, ratio = 1;
+  st.blocked = false;
   if (r) {
     var cx = st.group.position.x, cz = st.group.position.z;
     var hx = Math.max(cx - _sbox.min.x, _sbox.max.x - cx, 0.01);
@@ -1832,6 +1836,7 @@ function applyStudentSize(st) {
       Math.min(cx - r.minX, r.maxX - cx) / hx,
       Math.min(cz - r.minZ, r.maxZ - cz) / hz);
     var ratioY = Math.min(1, (r.maxY - 0.2) / Math.max(0.01, _sbox.max.y - 0.2));
+    st.blocked = (ratio < 0.999 || ratioY < 0.999);
     if (ratio < 1 || ratioY < 1) {
       st.body.scale.x *= ratio; st.body.scale.z *= ratio;   // 옆은 벽까지, 위는 천장까지
       st.body.scale.y *= ratioY;
@@ -1872,6 +1877,35 @@ function studentFart(st) {
   SFART.mesh.visible = true;
 }
 
+/* 교실이 좁아지면 벽을 밀어 부수고 더 자란다 */
+function burstRoom(st) {
+  var r = st.room;
+  if (!r) return;
+  var wide = { minX:r.minX - 1.2, maxX:r.maxX + 1.2, minZ:r.minZ - 1.2, maxZ:r.maxZ + 1.2 };
+  var names = st.roomLevel ? ['학교 벽', '학교 유리창', '학교 지붕', '교실 칸막이']
+                           : ['교실 칸막이'];
+  boxes.forEach(function (b) {
+    if (b.cut || names.indexOf(b.name) < 0) return;
+    if (b.max.x < wide.minX || b.min.x > wide.maxX) return;
+    if (b.max.z < wide.minZ || b.min.z > wide.maxZ) return;
+    smashBox(b, '학생');                       // 조각조각 재가 되어 남는다
+  });
+
+  if (!st.roomLevel) {
+    // 칸막이를 부쉈다 -> 학교 전체가 한 교실이 된다
+    var wider = { minX:SCHOOL.minX + 0.5, maxX:SCHOOL.maxX - 0.5,
+                  minZ:SCHOOL.minZ + 0.5, maxZ:SCHOOL.maxZ - 0.5, maxY:4.3 };
+    STUDENTS.forEach(function (o) { if (o.roomLevel === st.roomLevel) { o.room = wider; o.roomLevel = 1; } });
+    toast('🏫 교실이 터졌다!', st.build + ' 학생이 너무 커져서 칸막이를 부쉈습니다');
+  } else {
+    // 학교 벽까지 부쉈다 -> 이제 하늘 아래에서 끝없이 큰다
+    STUDENTS.forEach(function (o) { if (o.roomLevel === 1) { o.room = null; o.roomLevel = 2; } });
+    toast('🏫 학교가 터졌다!', st.build + ' 학생이 학교보다 커졌습니다');
+  }
+  st.press = 0;
+  applyStudentSize(st);
+}
+
 /* 커진 몸은 부드럽게 따라온다 */
 function growStudents(dt) {
   STUDENTS.forEach(function (st) {
@@ -1879,6 +1913,13 @@ function growStudents(dt) {
       st.shown += (st.grow - st.shown) * Math.min(1, dt * 2.2);
       if (Math.abs(st.grow - st.shown) < 0.002) st.shown = st.grow;
       applyStudentSize(st);
+    }
+    // 벽에 눌린 채로 계속 먹으면 벽이 버티지 못한다
+    if (st.blocked && st.pressArm) {
+      st.press = (st.press || 0) + dt;
+      if (st.press > 1.6) burstRoom(st);
+    } else {
+      st.press = 0;
     }
   });
 }
@@ -2065,6 +2106,7 @@ function feedStudent(i) {
   // 한도를 넘어도 멈추지 않는다 — 넘은 만큼은 천천히 계속 불어난다
   if (cm > GROW_CAP) cm = GROW_CAP + (cm - GROW_CAP) * OVER_RATE;
   st.grow = Math.max(st.grow, cm);
+  st.pressArm = true;                      // 더 먹었으니 벽을 밀어 볼 수 있다
 }
 
 /* ---- 트램펄린 4개 ---- */
@@ -2391,6 +2433,8 @@ function spawnFriends() {
       passCool: 0,
       greed: Math.random(),
       laserT: 0,
+      trip: null,                        // 학교 나들이
+      tripT: 15 + Math.random() * 50,
       lapT: 3 + Math.random() * 10,      // 아이 허벅지에 올라가고 싶어지는 시간
       lapSeek: false,
       lapStay: 0,
@@ -2451,6 +2495,69 @@ function ledgeAhead(f, dx, dz) {
 }
 
 // 몇 군데 후보 중 '멀고, 애벌레에서 떨어져 있고, 갈 수 있는' 곳을 고른다
+/* 집 안에서 길까지는 문틈을 지나가듯 곧장 걸어 나간다 (길 위에서는 평소처럼 부딪힌다) */
+var HOUSE_EXIT = { x:-15.5, z:-13.0 };
+
+function glide(f, tx, tz, sp, dt) {
+  var dx = tx - f.pos.x, dz = tz - f.pos.z;
+  var d = Math.hypot(dx, dz) || 1;
+  var step = Math.min(d, sp * dt);
+  f.pos.x += dx / d * step;
+  f.pos.z += dz / d * step;
+  f.pos.y = 0;
+  f.vel.set(0, 0, 0);
+  f.yaw = Math.atan2(dx, dz);
+  f.mesh.position.set(f.pos.x, f.pos.y + f.def.r, f.pos.z);
+  f.mesh.rotation.y = f.yaw;
+  f.mesh.rotation.x = 0;
+  if (f.bar) { f.bar.position.set(f.pos.x, f.pos.y + f.def.r * 2.2, f.pos.z); }
+  return d;
+}
+
+/* 학교까지 갔다가 교실을 구경하고 돌아온다. true 를 돌려주면 이번 프레임은 여기서 끝 */
+function updateFriendTrip(f, dt) {
+  var tp = f.trip, sp = f.def.speed * 2.6;
+
+  if (tp.phase === 'out') {                       // 집 밖으로
+    if (glide(f, HOUSE_EXIT.x, HOUSE_EXIT.z, f.def.speed * 1.6, dt) < 0.6) tp.phase = 'go';
+    return true;
+  }
+  if (tp.phase === 'go') {                        // 길을 따라 학교 정문까지
+    if (glide(f, SCHOOL.maxX + 2.2, SCHOOL.minZ + 6.5, sp, dt) < 0.8) tp.phase = 'enter';
+    return true;
+  }
+  if (tp.phase === 'enter') {                     // 정문으로 들어간다
+    if (glide(f, SCHOOL.maxX - 2.0, SCHOOL.minZ + 6.5, f.def.speed * 1.4, dt) < 0.6) {
+      tp.phase = 'at'; tp.t = 25 + Math.random() * 20; tp.spot = null;
+    }
+    return true;
+  }
+  if (tp.phase === 'at') {                        // 들어간 교실을 구경한다
+    tp.t -= dt;
+    if (!tp.spot || Math.hypot(f.pos.x - tp.spot.x, f.pos.z - tp.spot.z) < 0.8) {
+      var room = STUDENTS.filter(function (st) {   // 정문 쪽 교실 (칸막이를 뚫고 다니지 않게)
+        return st.desk.x > SCHOOL.px[1] && st.desk.z < SCHOOL.pz;
+      });
+      var st2 = room.length ? room[(Math.random() * room.length) | 0] : STUDENTS[0];
+      tp.spot = { x:st2.desk.x - 2.2, z:st2.desk.z };   // 책상 구경
+    }
+    glide(f, tp.spot.x, tp.spot.z, f.def.speed * 0.9, dt);
+    if (tp.t <= 0) tp.phase = 'out2';
+    return true;
+  }
+  if (tp.phase === 'out2') {                      // 정문으로 다시 나온다
+    if (glide(f, SCHOOL.maxX + 2.2, SCHOOL.minZ + 6.5, f.def.speed * 1.4, dt) < 0.8) tp.phase = 'home';
+    return true;
+  }
+  // 집으로
+  if (glide(f, HOUSE_EXIT.x, HOUSE_EXIT.z, sp, dt) < 0.6) {
+    f.trip = null;
+    f.tripT = 40 + Math.random() * 60;
+    f.pos.set(-12.0, 0, -13.0);
+  }
+  return true;
+}
+
 function pickGoal(f) {
   var best = null, bestScore = -Infinity;
   for (var k = 0; k < 7; k++) {
@@ -2619,6 +2726,10 @@ function restart() {
     st.group.position.copy(st.home);
     st.group.rotation.set(0, -Math.PI / 2, 0);
     st.trays = 0; st.grow = 0; st.shown = 0;
+    st.press = 0; st.pressArm = false;
+    st.room = st.room0 ? { minX:st.room0.minX, maxX:st.room0.maxX, minZ:st.room0.minZ,
+                           maxZ:st.room0.maxZ, maxY:st.room0.maxY } : null;
+    st.roomLevel = 0;
     applyStudentSize(st);
   });
   LUNCH.state = 'idle'; LUNCH.t = 0; LUNCH.wait = 0; LUNCH.round = 0; LUNCH.flying = null;
@@ -3881,6 +3992,14 @@ function updateFriends(dt) {
       }
       return;
     }
+
+    /* --- 학교 나들이 — 다른 과일도 학교에 간다 --- */
+    f.tripT -= dt;
+    if (!f.trip && f.tripT <= 0 && catD > 7) {
+      f.trip = { phase:'out', t:0 };
+      f.lapSeek = false; f.hideSpot = null;
+    }
+    if (f.trip && updateFriendTrip(f, dt)) return;
 
     /* --- 무엇을 할지 정한다 --- */
     if (catD < 4.5) f.panic = 1.8; else f.panic = Math.max(0, f.panic - dt);
