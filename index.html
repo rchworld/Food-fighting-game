@@ -148,6 +148,7 @@
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
       도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
       뱃살이 두둑한 학생은 대포알이 배에 묻혔다가 <b>튕겨 나가</b> 쏜 사람이 넘어집니다.
+      학생 머리 위 <b>체력 바</b>가 다 닳으면 <b>아주 큰 방귀</b>를 뀌고 홀쭉해져서 밥 먹으러 학교로 갑니다.
       빌딩은 <b>문으로 들어갈 수 있고</b>, 안에서 통유리로 바깥 학생들이 보입니다.
       도시 서쪽 끝에서는 <b>학교로 바로 가는 길</b>(ㄱ자)이 이어집니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
@@ -1692,6 +1693,7 @@ scene.add(CAR.group);
         bodyScale:bd.group.scale.x, headY:bd.headY,
         desk:new THREE.Vector3(dx, 0.97, dz),
         seat:new THREE.Vector3(dx + 1.35, 0, dz),
+        hp:100, hpMax:100, hurt:0,
         room:classroomOf(dx + 1.35, dz),
         room0:classroomOf(dx + 1.35, dz),
         roomLevel:0, press:0, pressArm:false,
@@ -1869,7 +1871,7 @@ var CITIZENS = [];
       eye.position.set(sd * 0.075, 1.31, 0.2); g.add(eye);
     });
     var px = CITY.x - 62 + (i * 13) % 124, pz = CITY.z - 34 + (i * 23) % 68;
-    var cannon = (i % 6 === 0);                 // 여섯에 하나는 대포를 끌고 다닌다
+    var cannon = (i % 3 === 0);                 // 셋에 하나는 대포를 끌고 다닌다
     if (cannon) {
       var base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.7), mat(0x4a4a50, 0.6, 0.4));
       base.position.set(0, 0.2, 0.55); g.add(base);
@@ -1887,7 +1889,7 @@ var CITIZENS = [];
     CITIZENS.push({ group:g, pos:new THREE.Vector3(px, 0, pz), yaw:0,
                     home:new THREE.Vector3(px, 0, pz),
                     goal:new THREE.Vector3(px, 0, pz), look:0, t:Math.random() * 4,
-                    cannon:cannon, cool:2 + Math.random() * 4, down:0 });
+                    cannon:cannon, cool:0.5 + Math.random() * 1.5, down:0 });
   }
 })();
 
@@ -2007,7 +2009,7 @@ function fireCannon(p, st) {
   var to = new THREE.Vector3(st.group.position.x, st.box.max.y * 0.55, st.group.position.z);
   var dir = to.clone().sub(from).normalize();
   mesh.position.copy(from);
-  BALLS.push({ mesh:mesh, pos:from, dir:dir, sp:16, owner:p, target:st, back:false, t:0 });
+  BALLS.push({ mesh:mesh, pos:from, dir:dir, sp:22, owner:p, target:st, back:false, t:0 });
   p.look = 1.2; p.at = st;
 }
 
@@ -2045,11 +2047,13 @@ function updateBalls(dt) {
             b.sp = 13;
             b.t = 0;
             shatter({ x:b.pos.x, y:b.pos.y, z:b.pos.z }, 0xf0d9a0, 6);
+            hurtStudent(st, 5);            // 튕겨 내도 배는 조금씩 지친다
             if (Math.hypot(player.pos.x - b.pos.x, player.pos.z - b.pos.z) < 45)
               toast('💥 대포가 튕겼다!', st.build + ' 학생의 뱃살에 묻혔다가 되돌아갑니다');
           } else {
             sp2.x += b.dir.x * 1.6; sp2.z += b.dir.z * 1.6;   // 맞으면 뒤로 밀린다
             moveStudentBox(st);
+            hurtStudent(st, 14);
             shatter({ x:b.pos.x, y:b.pos.y, z:b.pos.z }, 0x9a9aa2, 10);
             scene.remove(b.mesh); BALLS.splice(i, 1); continue;
           }
@@ -2078,7 +2082,7 @@ function updateCitizens(dt) {
 
     if (p.cannon) {                        // 대포를 학생에게 쏜다
       p.cool -= dt;
-      var aim = null, ad = 55;
+      var aim = null, ad = 90;
       STUDENTS.forEach(function (st) {
         if (st.thrown) return;
         var d2 = Math.hypot(st.group.position.x - p.pos.x, st.group.position.z - p.pos.z);
@@ -2087,8 +2091,8 @@ function updateCitizens(dt) {
       if (aim) {
         var wy2 = Math.atan2(aim.group.position.x - p.pos.x, aim.group.position.z - p.pos.z);
         var df2 = ((wy2 - p.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-        p.yaw += df2 * Math.min(1, 5 * dt);
-        if (p.cool <= 0 && Math.abs(df2) < 0.4) { fireCannon(p, aim); p.cool = 3 + Math.random() * 3; }
+        p.yaw += df2 * Math.min(1, 9 * dt);
+        if (p.cool <= 0 && Math.abs(df2) < 0.7) { fireCannon(p, aim); p.cool = 0.9 + Math.random() * 1.2; }
         p.group.position.copy(p.pos);
         p.group.rotation.y = p.yaw;
         return;                            // 쏘는 동안에는 제자리에 선다
@@ -2325,6 +2329,43 @@ function burstRoom(st) {
  *  학생들의 움직임 — 자리에 앉아 있다가, 돌아다니다가, 도시나 집까지 간다
  * ------------------------------------------------------------------ */
 
+var STUDENT_HP = 100;
+
+/* 체력이 다 닳으면 아주 큰 방귀를 뀌고, 홀쭉해져서 밥을 먹으러 학교로 간다 */
+function studentBlowout(st) {
+  st.hp = st.hpMax;
+  st.hurt = 0;
+  st.grow *= 0.22;                       // 뱃살이 확 빠진다
+  st.shown = st.grow;
+  st.pressArm = false;
+  applyStudentSize(st);
+
+  SFART.from = st;                        // 평소 방귀보다 훨씬 크다
+  SFART.t = 3.2;
+  SFART.r = 16 + st.shown;
+  SFART.blew = false;
+  SFART.mesh.position.set(st.group.position.x, 1.2, st.group.position.z);
+  SFART.mesh.visible = true;
+
+  // 근처 사람들은 방귀 바람에 넘어진다
+  CITIZENS.forEach(function (p) {
+    if (Math.hypot(p.pos.x - st.group.position.x, p.pos.z - st.group.position.z) < SFART.r)
+      p.down = 2.5;
+  });
+
+  st.mode = 'seat';                       // 배가 고프니 밥 먹으러 학교로
+  st.target = { x:st.seat.x, z:st.seat.z };
+  st.modeT = 60 + Math.random() * 30;
+  if (Math.hypot(player.pos.x - st.group.position.x, player.pos.z - st.group.position.z) < 60)
+    toast('💨💨 엄청난 방귀!', st.build + ' 학생이 홀쭉해져서 밥 먹으러 갑니다');
+}
+
+function hurtStudent(st, dmg) {
+  st.hp -= dmg;
+  st.hurt = 3.5;
+  if (st.hp <= 0) studentBlowout(st);
+}
+
 function studentRadius(st) {
   return Math.max(0.5, (st.box.max.x - st.box.min.x + st.box.max.z - st.box.min.z) / 4);
 }
@@ -2347,14 +2388,19 @@ function pickStudentMode(st) {
     st.target = { x:SCHOOL.minX + 2 + Math.random() * (SCHOOL.maxX - SCHOOL.minX - 4),
                   z:SCHOOL.minZ + 2 + Math.random() * (SCHOOL.maxZ - SCHOOL.minZ - 4) };
     st.modeT = 10 + Math.random() * 10;
-  } else if (roll < 0.9) {               // 도시까지 간다
+  } else if (roll < 0.77) {              // 아주 가끔 도시까지 간다
     st.mode = 'city';
     st.target = { x:CITY.x + (Math.random() - 0.5) * 100, z:CITY.z + (Math.random() - 0.5) * 70 };
     st.modeT = 70 + Math.random() * 40;
-  } else {                               // 처음 시작한 집까지 간다
+  } else if (roll < 0.84) {              // 처음 시작한 집까지 간다
     st.mode = 'house';
     st.target = { x:2 + (Math.random() - 0.5) * 8, z:12 + (Math.random() - 0.5) * 8 };
     st.modeT = 60 + Math.random() * 30;
+  } else {                               // 대개는 교실에서 더 논다
+    st.mode = 'walk';
+    st.target = { x:SCHOOL.minX + 2 + Math.random() * (SCHOOL.maxX - SCHOOL.minX - 4),
+                  z:SCHOOL.minZ + 2 + Math.random() * (SCHOOL.maxZ - SCHOOL.minZ - 4) };
+    st.modeT = 12 + Math.random() * 12;
   }
 }
 
@@ -2527,10 +2573,16 @@ function trayCount(i) {
 }
 
 /* 도둑은 뚱뚱한 학생일수록 잘 훔친다 */
+function atSchool(st) {
+  var p = st.group.position;
+  return p.x > SCHOOL.minX - 6 && p.x < SCHOOL.maxX + 6 &&
+         p.z > SCHOOL.minZ - 6 && p.z < SCHOOL.maxZ + 6;
+}
+
 function pickThief(victim) {
   var best = null, bestW = -1;
   STUDENTS.forEach(function (st, i) {
-    if (i === victim || st.thrown || st.taken) return;
+    if (i === victim || st.thrown || st.taken || !atSchool(st)) return;
     var w = Math.random() * (st.buildIdx === 0 ? 3.2 : st.buildIdx === 1 ? 1.6 : 1);
     if (w > bestW) { bestW = w; best = i; }
   });
@@ -2591,7 +2643,10 @@ function updateLunch(dt) {
     /* 자기 식판을 먹는다 — 0.2cm씩 커진다 */
     var eat = -1;
     for (var j = 0; j < STUDENTS.length; j++) {
-      if (!STUDENTS[j].served) { eat = j; break; }
+      if (!STUDENTS[j].served && atSchool(STUDENTS[j])) { eat = j; break; }
+    }
+    if (eat < 0) {                        // 자리에 없는 학생 몫은 그냥 남는다
+      STUDENTS.forEach(function (st) { st.served = true; });
     }
     if (eat < 0) {
       LUNCH.state = 'steal'; LUNCH.next = 0.8;   // 쟁탈전은 조용히 시작된다
@@ -2610,6 +2665,9 @@ function updateLunch(dt) {
     }
     var victims = [];
     STUDENTS.forEach(function (st, i) { if (trayCount(i) > 0 && !st.thrown) victims.push(i); });
+    // 학교에 남은 학생이 적으면 훔치는 속도가 빨라진다 (혼자면 거의 다 독점한다)
+    var here = STUDENTS.filter(atSchool).length;
+    if (here <= 3) LUNCH.next = 0.08;
     if (!victims.length) { LUNCH.next = 0.6; return; }
     var v = victims[Math.floor(Math.random() * victims.length)];
     var th = pickThief(v);
@@ -3259,6 +3317,8 @@ function restart() {
     st.trays = 0; st.grow = 0; st.shown = 0;
     st.press = 0; st.pressArm = false;
     st.mode = 'seat'; st.target = { x:st.seat.x, z:st.seat.z }; st.modeT = 6 + Math.random() * 20;
+    st.hp = st.hpMax; st.hurt = 0;
+    if (st.bar) st.bar.visible = false;
     st.group.position.copy(st.home);
     st.room = st.room0 ? { minX:st.room0.minX, maxX:st.room0.maxX, minZ:st.room0.minZ,
                            maxZ:st.room0.maxZ, maxY:st.room0.maxY } : null;
@@ -3506,6 +3566,20 @@ function updateHpBar() {
 
 // 과일 체력 바 — 레이저를 맞으면 줄어든다
 var playerBar = makeBar(0.5);
+
+function updateStudentBars() {
+  STUDENTS.forEach(function (st) {
+    if (!st.bar) { st.bar = makeBar(1.3); }
+    if (st.hurt > 0) st.hurt -= 0.016;
+    var p = st.group.position;
+    var near = Math.hypot(player.pos.x - p.x, player.pos.z - p.z) < 70;
+    st.bar.visible = !st.thrown && near && (st.hurt > 0 || st.hp < st.hpMax);
+    if (st.bar.visible) {
+      setBar(st.bar, st.hp / st.hpMax, p.x, st.box.max.y + 0.7, p.z);
+      st.bar.scale.setScalar(Math.max(0.7, Math.min(3.2, studentRadius(st) * 1.1)));
+    }
+  });
+}
 
 function updateFruitBars() {
   var show = CHILD.state !== 'sleep';
@@ -4880,6 +4954,7 @@ function loop(now) {
     updateFart(dt);
     updateHpBar();
     updateFruitBars();
+    updateStudentBars();
     updateHUD();
   }
 
