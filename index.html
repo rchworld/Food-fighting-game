@@ -148,7 +148,8 @@
       학생들이 도시까지 걸어가 건물에 부딪히면 그 건물은 <b>맨 위층부터</b> 한 층씩 재가 됩니다.
       도시 사람들(44명)은 돌아다니다가 가끔 학생을 빤히 쳐다보고, 그중 8명은 <b>대포</b>로 학생을 쏩니다.
       뱃살이 두둑한 학생은 대포알이 배에 묻혔다가 <b>튕겨 나가</b> 쏜 사람이 넘어집니다.
-      빌딩은 <b>문으로 들어갈 수 있고</b>, 안에서 통유리로 바깥 학생들이 보입니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
+      빌딩은 <b>문으로 들어갈 수 있고</b>, 안에서 통유리로 바깥 학생들이 보입니다.
+      도시 서쪽 끝에서는 <b>학교로 바로 가는 길</b>(ㄱ자)이 이어집니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
     </p>
@@ -1940,6 +1941,57 @@ var CITIZENS = [];
       new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c) }));
     board.position.set(3.6, 2.0, z); scene.add(board);
   }
+  /* ---- 도시에서 학교로 바로 가는 길 (ㄱ자로 꺾인다) ---- */
+  var CX = CITY.minX - 2, SX = SCHOOL.x;         // 도시 서쪽 끝 -> 학교가 선 x
+  function strip(x0, x1, z0, z1, color, y) {     // 바닥에 까는 판
+    var pl = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0),
+      new THREE.MeshStandardMaterial({ color:color, roughness:0.95 }));
+    pl.rotation.x = -Math.PI / 2;
+    pl.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+    pl.receiveShadow = true; scene.add(pl);
+  }
+  // 도시 -> 서쪽으로 (z = 도시 한가운데)
+  strip(SX - 14, CX + 6, CITY.z - 16, CITY.z + 16, 0x6f8f5a, -0.02);
+  strip(SX - 8, CX + 4, CITY.z - 3.1, CITY.z + 3.1, 0x4b4a4d, 0.005);
+  // 꺾어서 북쪽으로 (x = 학교 쪽)
+  strip(SX - 14, SX + 14, SCHOOL.maxZ - 4, CITY.z + 16, 0x6f8f5a, -0.021);
+  strip(SX - 3.1, SX + 3.1, SCHOOL.maxZ - 4, CITY.z + 4, 0x4b4a4d, 0.004);
+
+  for (var a = 0; a < 56; a++) {                 // 중앙선 — 서쪽 구간
+    var dx2 = CX - 4 - a * 6;
+    if (dx2 < SX + 4) break;
+    var d1 = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.18),
+      new THREE.MeshBasicMaterial({ color:0xe8e2c8 }));
+    d1.rotation.x = -Math.PI / 2; d1.position.set(dx2, 0.012, CITY.z); scene.add(d1);
+  }
+  for (var c2 = 0; c2 < 56; c2++) {              // 중앙선 — 북쪽 구간
+    var dz2 = CITY.z - 6 - c2 * 6;
+    if (dz2 < SCHOOL.maxZ) break;
+    var d3 = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 2.6),
+      new THREE.MeshBasicMaterial({ color:0xe8e2c8 }));
+    d3.rotation.x = -Math.PI / 2; d3.position.set(SX, 0.012, dz2); scene.add(d3);
+  }
+
+  function signAt(x, z, text, color) {           // 아무 데나 세우는 표지판
+    var po = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 8), mat(0x7a5c3c, 0.9));
+    po.position.set(x, 1.1, z); po.castShadow = true; scene.add(po);
+    var cc = document.createElement('canvas');
+    cc.width = 256; cc.height = 96;
+    var gg = cc.getContext('2d');
+    gg.fillStyle = color; gg.fillRect(0, 0, 256, 96);
+    gg.fillStyle = '#f2f6ee'; gg.font = 'bold 38px sans-serif'; gg.textAlign = 'center';
+    gg.fillText(text, 128, 60);
+    var bd2 = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 0.08),
+      new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(cc) }));
+    bd2.position.set(x, 2.0, z); scene.add(bd2);
+  }
+  signAt(CX + 2, CITY.z + 5, '← 학교 320m', '#3f6b4a');
+  for (var q2 = 1; q2 <= 4; q2++) signAt(CX - q2 * 60, CITY.z + 4.6, '← 학교', '#3f6b4a');
+  signAt(SX + 5, CITY.z + 4.6, '학교 ↑ 310m', '#3f6b4a');
+  for (var q3 = 1; q3 <= 4; q3++) signAt(SX + 4.6, CITY.z - q3 * 62, '학교 ↑', '#3f6b4a');
+  signAt(SX + 4.6, SCHOOL.maxZ + 6, '학교 도착', '#3f6b4a');
+  signAt(SX + 4.6, SCHOOL.maxZ + 10, '도시 ↓ 310m', '#3f5a6b');
+
   sign(20, '도시 300m ↓');
   for (var q = 60; q < z1 - 20; q += 60) sign(q, '도시 ' + Math.round(CITY.z - q) + 'm ↓');
   sign(z1 - 6, '도시 입구');
@@ -4738,7 +4790,9 @@ function updateHUD() {
   document.getElementById('dist').textContent = '애벌레 거리 ' + d.toFixed(1) + 'm';
   var sd = document.getElementById('schoolDist');
   if (player.pos.x < -14) {
-    var toSchool = Math.max(0, player.pos.x - (SCHOOL.maxX + 2));
+    var toSchool = Math.hypot(Math.max(0, player.pos.x - (SCHOOL.maxX + 2)),
+                              Math.max(0, player.pos.z - (SCHOOL.maxZ + 2),
+                                       SCHOOL.minZ - 2 - player.pos.z));
     sd.style.display = '';
     sd.innerHTML = (toSchool > 1 ? '🏫 학교까지 <b>' + Math.round(toSchool) + 'm</b>' : '🏫 <b>학교 도착</b>') +
                    '<br><span style="opacity:.65">' +
