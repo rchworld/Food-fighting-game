@@ -145,6 +145,7 @@
       많이 먹을수록 몸이 불어납니다. 학생 몸은 통과할 수 없고, 책상 옆 발판을 밟으면 책상 위로 올라갑니다.
       학생들의 <b>방귀</b>에 닿으면 과일이 멀리 날아갑니다. 학생이 교실보다 커지면 <b>벽을 부수고</b> 더 자랍니다.
       다른 과일들도 가끔 학교에 다녀옵니다.<br>
+      <b>화장실</b>은 마당과 학교 옆에 있습니다. 급해진 학생·과일이 들어가고, 한 번에 한 명만 씁니다(나오면 배가 홀쭉).<br>
       과일은 <b>등잔불</b>을 들고 다녀서 밤에도 멀리까지 보입니다.
       <b>E</b> 를 누르면 앞에 <b>텐트</b>를 치고, 그 안에 있으면 애벌레가 찾지 못합니다(옆에서 E 로 걷기).<br>
       차를 훔쳐 타면 아이가 쫓아오는데, 그때 <b>Q</b> 로 소환하면 <b>배가 20m나 되는 거인</b>이 나타나
@@ -2418,12 +2419,40 @@ function pickStudentMode(st) {
 function updateStudents(dt) {
   STUDENTS.forEach(function (st) {
     if (st.thrown || st.taken) return;
+    if (!st.group.visible) return;        // 화장실에 들어가 있다
     if (st.mode === undefined) {          // 처음에는 자리에 앉아 있다
       st.mode = 'seat'; st.target = { x:st.seat.x, z:st.seat.z };
       st.modeT = 6 + Math.random() * 20;
     }
 
     if (st.mode === 'summon') return;        // 소환되어 아이를 막고 서 있다
+
+    /* --- 급하면 화장실로 간다 --- */
+    if (st.urge === undefined) st.urge = 30 + Math.random() * 60;
+    if (st.mode !== 'toilet') st.urge -= dt;
+    if (st.urge <= 0 && st.mode !== 'toilet') {
+      var w0 = freeToilet(st.group.position.x, st.group.position.z);
+      if (w0) {
+        st.mode = 'toilet'; st.wc = w0; st.modeT = 1e9;
+        st.target = { x:w0.door.x, z:w0.door.z };
+      } else {
+        st.urge = 3;                          // 자리가 없으면 조금 참는다
+      }
+    }
+    if (st.mode === 'toilet' && !st.wc) {      // 먼저 들어간 사람이 있어 되돌아간다
+      st.mode = 'walk'; st.modeT = 2 + Math.random() * 3;
+    }
+    if (st.mode === 'toilet' && st.wc) {
+      if (st.wc.user && st.wc.user.st !== st) {   // 누가 먼저 들어갔다
+        st.mode = 'walk'; st.wc = null; st.urge = 4;
+      } else if (Math.hypot(st.group.position.x - st.wc.door.x,
+                            st.group.position.z - st.wc.door.z) < 1.4) {
+        enterToilet(st.wc, { kind:'student', st:st });
+        st.wc = null;
+        return;
+      }
+    }
+
     st.modeT -= dt;
     if (st.modeT <= 0) pickStudentMode(st);
 
@@ -2708,6 +2737,7 @@ function feedStudent(i) {
   if (cm > GROW_CAP) cm = GROW_CAP + (cm - GROW_CAP) * OVER_RATE;
   st.grow = Math.max(st.grow, cm);
   st.pressArm = true;                      // 더 먹었으니 벽을 밀어 볼 수 있다
+  if (st.urge !== undefined) st.urge -= 4;   // 많이 먹으면 금방 급해진다
 }
 
 /* ---- 트램펄린 4개 ---- */
@@ -3354,6 +3384,8 @@ function restart() {
   player.laserT = 0;
   night.on = false; night.blend = 0;
   SUMMON.phase = null; GIANT.group.visible = false;
+  TOILETS.forEach(function (w) { w.user = null; w.t = 0; });
+  STUDENTS.forEach(function (st) { st.group.visible = true; st.urge = 30 + Math.random() * 60; });
   SUMMON.blast.visible = false;
   TENT.placed = false; TENT.group.visible = false;
   TENT.boxes.forEach(function (b) { b.disabled = true; });
@@ -4627,6 +4659,25 @@ function updateFriends(dt) {
       return;
     }
 
+    /* --- 급하면 화장실로 간다 --- */
+    if (f.urge === undefined) f.urge = 50 + Math.random() * 90;
+    if (!f.wc) f.urge -= dt;
+    if (f.urge <= 0 && !f.wc && !f.trip && catD > 7) {
+      var w1 = freeToilet(f.pos.x, f.pos.z);
+      if (w1) { f.wc = w1; f.hideSpot = null; f.lapSeek = false; }
+      else f.urge = 4;
+    }
+    if (f.wc) {
+      if (f.wc.user && f.wc.user.f !== f) { f.wc = null; f.urge = 5; }
+      else {
+        if (glide(f, f.wc.door.x, f.wc.door.z, f.def.speed * 1.4, dt) < 0.8) {
+          enterToilet(f.wc, { kind:'fruit', f:f });
+        }
+        return;
+      }
+    }
+    if (!f.mesh.visible) return;              // 화장실 안에 있다
+
     /* --- 학교 나들이 — 다른 과일도 학교에 간다 --- */
     f.tripT -= dt;
     if (!f.trip && f.tripT <= 0 && catD > 7) {
@@ -4941,6 +4992,99 @@ function updateHUD() {
 }
 
 /* ------------------------------------------------------------------ *
+ *  화장실 — 학교와 집에 하나씩. 급한 사람이 들어가고, 한 번에 한 명만 쓴다.
+ * ------------------------------------------------------------------ */
+
+var TOILETS = [];
+
+function buildToilet(x, z, name) {
+  var wall = mat(0xe6e2d8, 0.9), t = 0.22, w = 1.5, h = 2.3;
+  // 문은 +z 쪽
+  solid(x - w, x - 0.55, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x + 0.55, x + w, 0, h, z + w - t, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x - w, x + w, 0, h, z - w, z - w + t, 0, { material:wall, name:'화장실 벽' });
+  solid(x - w, x - w + t, 0, h, z - w, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x + w - t, x + w, 0, h, z - w, z + w, 0, { material:wall, name:'화장실 벽' });
+  solid(x - w, x + w, h, h + 0.18, z - w, z + w, 0, { material:mat(0x8a5a4a, 0.9), name:'화장실 지붕' });
+  var door = addDoor(x - 0.55, z + w, 1.1, 2.0, 0.12, false, 1, 0x7a5a3c, name + ' 문');
+
+  // 변기
+  var bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.24, 0.42, 14), mat(0xf4f6f8, 0.3));
+  bowl.position.set(x, 0.21, z - 0.75); scene.add(bowl);
+  var seat = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.06, 8, 18), mat(0xf4f6f8, 0.3));
+  seat.rotation.x = Math.PI / 2; seat.position.set(x, 0.44, z - 0.75); scene.add(seat);
+  var tank = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.18), mat(0xf4f6f8, 0.3));
+  tank.position.set(x, 0.65, z - 1.05); scene.add(tank);
+
+  // 표지판 (비어 있으면 초록, 쓰는 중이면 빨강)
+  var sign = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.26, 0.06),
+    new THREE.MeshBasicMaterial({ color:0x4fae5f }));
+  sign.position.set(x + 0.9, 2.05, z + w + 0.05); scene.add(sign);
+
+  var wc2 = { x:x, z:z, name:name, door:{ x:x, z:z + w + 1.1 }, inside:{ x:x, z:z - 0.2 },
+              user:null, t:0, sign:sign, doorObj:door };
+  TOILETS.push(wc2);
+  return wc2;
+}
+
+buildToilet(6.6, 12.0, '집 화장실');
+buildToilet(SCHOOL.maxX + 5.5, SCHOOL.z + 7.5, '학교 화장실');
+
+function freeToilet(x, z, maxD) {
+  var best = null, bd = maxD || 70;          // 너무 먼 화장실까지 가지는 않는다
+  TOILETS.forEach(function (w) {
+    if (w.user) return;
+    var d = Math.hypot(w.door.x - x, w.door.z - z);
+    if (d < bd) { bd = d; best = w; }
+  });
+  return best;
+}
+
+function updateToilets(dt) {
+  TOILETS.forEach(function (w) {
+    w.sign.material.color.setHex(w.user ? 0xd84a3c : 0x4fae5f);
+    if (!w.user) return;
+    w.t -= dt;
+    if (w.t > 0) return;
+
+    var u = w.user;                       // 볼일을 다 봤다 — 시원해져서 나온다
+    if (u.kind === 'student') {
+      var st = u.st;
+      st.group.visible = true;
+      st.group.position.set(w.door.x, 0, w.door.z);
+      st.grow *= 0.55;                    // 배가 쑥 꺼진다
+      st.shown = st.grow;
+      applyStudentSize(st);
+      moveStudentBox(st);
+      st.mode = 'seat';
+      st.target = { x:st.seat.x, z:st.seat.z };
+      st.modeT = 20 + Math.random() * 20;
+      st.urge = 40 + Math.random() * 60;
+      st.box.disabled = false;
+    } else {
+      var f = u.f;
+      f.mesh.visible = true;
+      f.pos.set(w.door.x, 0, w.door.z);
+      f.wc = null;
+      f.urge = 60 + Math.random() * 80;
+    }
+    w.user = null;
+  });
+}
+
+/* 급해진 사람을 화장실로 들여보낸다 */
+function enterToilet(w, user) {
+  w.user = user;
+  w.t = 4 + Math.random() * 4;
+  if (user.kind === 'student') {
+    user.st.group.visible = false;
+    user.st.box.disabled = true;
+  } else {
+    user.f.mesh.visible = false;
+  }
+}
+
+/* ------------------------------------------------------------------ *
  *  소환 아이템 — Q. 차를 쫓아오는 아이 앞에 뱃살이 제일 큰 학생을 불러낸다.
  *  학생은 아이 앞에 딱 멈춰 서서, 엉덩이로 아주 큰 방귀를 뿜어 아이를 집까지 날려 버린다.
  * ------------------------------------------------------------------ */
@@ -5234,6 +5378,7 @@ function loop(now) {
     updateStudentBars();
     updateLantern(dt);
     updateSummon(dt);
+    updateToilets(dt);
     if (TENT.cool > 0) TENT.cool -= dt;
     updateHUD();
   }
@@ -5289,7 +5434,7 @@ window.FOOD_GAME = {
   CITY: CITY, BUILDINGS: BUILDINGS, CITIZENS: CITIZENS, BALLS: BALLS, fireCannon: fireCannon,
   SFART: SFART, studentFart: studentFart, applyStudentSize: applyStudentSize,
   TENT: TENT, LANTERN: LANTERN, pitchTent: pitchTent, inTent: inTent,
-  SUMMON: SUMMON, useSummon: useSummon, GIANT: GIANT,
+  SUMMON: SUMMON, useSummon: useSummon, GIANT: GIANT, TOILETS: TOILETS,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
