@@ -140,9 +140,8 @@
       집 앞에 <b>엄마 자동차</b>가 세워져 있습니다. 몸을 대면 훔쳐 타고 <b>5배</b>로 달립니다
       (Space 로 내립니다). 다만 <b>차를 타면 아이가 2.6배로 쫓아옵니다.</b>
       걸어가면 길에서는 2.6배로 달립니다. 서쪽으로 <b>300m</b> 가면 학교가 나오는데,
-      학교에 가까이 가면 <b>급식시간</b>이 열려 학생들이 서로 식판을 훔치고, 많이 먹을수록 몸이 불어납니다.
-      그다음 안경 쓴 할머니 선생님이 학생 하나를 휘둘러 학교를 박살내고, 다 부수면 학생을 던져
-      <b>길가 집을 한 채씩</b> 무너뜨립니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
+      학교에서는 <b>20초에 한 번씩 급식시간</b>이 열려 학생들이 서로 식판을 훔치고,
+      많이 먹을수록 몸이 불어납니다. 안경 쓴 할머니 선생님은 교실 앞을 오갈 뿐입니다. 아이는 엄마와 싸우고 나면 학교로 갑니다.<br>
       그리고 아이는 <b>방귀</b>도 뀝니다. 아무 예고 없이 아이가 있는 <b>방 하나</b>가 노랗게 차오르고,
       그 방에 있으면 몸이 서서히 상합니다. 옆방으로는 넘어오지 않습니다.
     </p>
@@ -1152,10 +1151,14 @@ function freeStudent() {
 
 function updateTeacher(dt) {
   var t = TEACHER;
-  // 급식시간에는 선생님도 기다린다
-  if (LUNCH.state !== 'idle' && LUNCH.state !== 'done') {
-    t.group.position.copy(t.pos); t.group.rotation.y = t.yaw; return;
-  }
+  // 선생님은 더 이상 학교를 부수지도, 학생을 던지지도 않는다 — 교실 앞을 오갈 뿐이다
+  walkPerson(t, SCHOOL.x + Math.sin(game.time * 0.35) * 7, SCHOOL.z + Math.cos(game.time * 0.25) * 4,
+             1.3, dt);
+  t.group.position.copy(t.pos);
+  t.group.position.y += Math.abs(Math.sin(game.time * 4)) * 0.03;
+  t.group.rotation.y = t.yaw;
+  t.arms.forEach(function (a) { a.rotation.x = 0; });
+  return;
 
   /* --- 학생이 날아가는 중 --- */
   if (t.flight) {
@@ -1727,10 +1730,13 @@ function trayGrowth(n) {                      // 식판 n개를 먹었을 때 �
   return sum;
 }
 
+var LUNCH_EVERY = 20;   // 급식시간은 20초에 한 번
+
 var LUNCH = {
   state: 'idle',        // idle | serve | eat | steal | done
   t: 0,
   next: 0,
+  wait: 0,
   trays: [],
   flying: null,
   group: new THREE.Group()
@@ -1781,10 +1787,10 @@ function startLunch() {
   if (LUNCH.state !== 'idle') return;
   LUNCH.state = 'serve';
   LUNCH.t = 0; LUNCH.next = 0; LUNCH.flying = null;
+  LUNCH.round = (LUNCH.round || 0) + 1;
   STUDENTS.forEach(function (st, i) {
     if (!LUNCH.trays[i]) LUNCH.trays[i] = makeTray(i);
-    st.trays = 0; st.grow = 0; st.shown = 0;
-    applyStudentSize(st);
+    st.served = false;                    // 이번 급식의 자기 식판을 아직 안 먹었다
     var tr = LUNCH.trays[i];
     tr.visible = false;
     tr.userData.owner = i;      // 지금 이 식판이 놓인 책상
@@ -1833,7 +1839,19 @@ function armLunch() {
 }
 
 function updateLunch(dt) {
-  if (LUNCH.state === 'idle' || LUNCH.state === 'done') return;
+  if (LUNCH.state === 'done') {           // 다음 급식시간까지 기다린다
+    LUNCH.wait -= dt;
+    STUDENTS.forEach(function (st) {
+      if (st.shown !== st.grow) {
+        st.shown += (st.grow - st.shown) * Math.min(1, dt * 2.2);
+        if (Math.abs(st.grow - st.shown) < 0.002) st.shown = st.grow;
+        applyStudentSize(st);
+      }
+    });
+    if (LUNCH.wait <= 0) { LUNCH.state = 'idle'; startLunch(); }
+    return;
+  }
+  if (LUNCH.state === 'idle') return;
   LUNCH.t += dt;
 
   /* 식판이 날아가는 중 */
@@ -1880,23 +1898,25 @@ function updateLunch(dt) {
     /* 자기 식판을 먹는다 — 0.2cm씩 커진다 */
     var eat = -1;
     for (var j = 0; j < STUDENTS.length; j++) {
-      if (STUDENTS[j].trays === 0) { eat = j; break; }
+      if (!STUDENTS[j].served) { eat = j; break; }
     }
     if (eat < 0) {
       LUNCH.state = 'steal'; LUNCH.next = 0.8;
       toast('🍽️ 식판 쟁탈전!', '다들 남의 식판을 훔칩니다');
       return;
     }
+    STUDENTS[eat].served = true;
     feedStudent(eat);
     LUNCH.next = 0.22;
 
   } else {
     /* 남의 식판을 훔친다 */
-    if (LUNCH.t > 34) {
+    if (LUNCH.t > 14) {
       LUNCH.state = 'done';
+      LUNCH.wait = Math.max(3, LUNCH_EVERY - LUNCH.t);
       var fat = STUDENTS.slice().sort(function (a, b) { return b.grow - a.grow; })[0];
       toast('🍱 급식 끝!', '제일 많이 먹은 학생은 ' + fat.build + ' 학생 (' +
-            fat.trays + '판, +' + fat.grow.toFixed(1) + 'cm)');
+            fat.trays + '판, +' + fat.grow.toFixed(1) + 'cm) — 다음 급식은 곧');
       return;
     }
     var victims = [];
@@ -2483,7 +2503,7 @@ function restart() {
     st.trays = 0; st.grow = 0; st.shown = 0;
     applyStudentSize(st);
   });
-  LUNCH.state = 'idle'; LUNCH.t = 0; LUNCH.flying = null;
+  LUNCH.state = 'idle'; LUNCH.t = 0; LUNCH.wait = 0; LUNCH.round = 0; LUNCH.flying = null;
   LUNCH.trays.forEach(function (tr) { tr.visible = false; });
   lunchArmed = false;
   MOM.group.rotation.x = 0; MOM.group.rotation.z = 0;
