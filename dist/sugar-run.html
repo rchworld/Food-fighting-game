@@ -69,6 +69,18 @@
   .stats div b { display:block; font-size:28px; }
   .stats div span { opacity:.6; font-size:13px; }
 
+  #surv {
+    position:fixed; bottom:14px; left:14px; z-index:10; min-width:220px;
+    background:rgba(24,14,8,.66); border:1px solid rgba(255,170,90,.22);
+    border-radius:14px; padding:10px 14px; font-size:13px; line-height:1.55;
+    backdrop-filter:blur(6px); pointer-events:none;
+  }
+  #surv .big { font-size:18px; font-weight:700; }
+  #surv .row { display:flex; justify-content:space-between; gap:14px; }
+  #surv .k { opacity:.7; }
+  .sbar { height:5px; border-radius:3px; background:rgba(255,255,255,.14); overflow:hidden; margin:1px 0 3px; }
+  .sbar div { height:100%; width:100%; }
+
   #mouseHint {
     position:fixed; bottom:18px; left:50%; transform:translateX(-50%); z-index:10;
     background:rgba(12,16,24,.6); border:1px solid rgba(255,255,255,.12);
@@ -103,6 +115,22 @@
   </div>
 </div>
 
+<div id="surv">
+  <div class="big"><span id="nightNo">☀️ 1일째 낮</span></div>
+  <div class="row"><span class="k">버틴 밤</span><b id="nightsDone">0 / 99</b></div>
+  <div class="row"><span class="k">❤️ 체력</span><span id="hpVal">100</span></div>
+  <div class="sbar"><div id="hpIn" style="background:#e94a5a"></div></div>
+  <div class="row"><span class="k">🍗 배고픔</span><span id="hungerVal">100</span></div>
+  <div class="sbar"><div id="hungerIn" style="background:#e8a23a"></div></div>
+  <div class="row"><span class="k">🔥 모닥불</span><span id="fuelVal">60%</span></div>
+  <div class="sbar"><div id="fuelIn" style="background:#ff8a2a"></div></div>
+  <div class="row"><span class="k">🔦 손전등 (V)</span></div>
+  <div class="sbar"><div id="beamIn" style="background:#f2e6a0"></div></div>
+  <div class="row"><span class="k">👶 구한 아이</span><span id="kids">0 / 4</span></div>
+  <div id="inv" style="margin-top:4px">🪵 0/8</div>
+  <div id="campHint" style="opacity:.8; font-size:12px">🔥 모닥불까지 --</div>
+</div>
+
 <div id="toast"></div>
 
 <div id="mouseHint">화면을 클릭하면 마우스로 시점을 돌릴 수 있습니다 (ESC로 해제)</div>
@@ -111,12 +139,20 @@
   <div class="card">
     <h1>🍬 설탕 도망쳐!</h1>
     <p class="sub">주방에 애벌레가 나타났다. AI 친구들과 함께 살아남으세요.</p>
+    <p class="sub" style="color:#ffc890">🌲 <b>숲의 99일 밤</b> — 마당 대문 밖 길을 따라 내려가다 <b>동쪽 숲</b>으로 가면 모닥불이 있습니다.
+      나무를 <b>C</b> 로 베어 통나무를 모으고, 모닥불 옆에서 <b>C</b> 로 넣어 불을 지키세요.
+      불빛 안은 안전합니다. 밤이 되면 <b>사슴 괴물</b>이 사냥을 나오니 <b>V</b> 손전등으로 비춰 얼리세요.
+      늑대를 잡으면 고기(모닥불에서 C 로 굽기), 덤불에서는 열매 — <b>X</b> 로 먹어 배고픔을 채웁니다.
+      숲 깊은 곳의 <b>길 잃은 아이 4명</b>을 모닥불까지 데려오고, <b>99번째 밤</b>까지 버티면 승리!</p>
     <div class="keys">
       <div class="key"><b>↑ ↓</b> 앞 / 뒤로 이동</div>
       <div class="key"><b>← →</b> 왼쪽 / 오른쪽으로 이동</div>
       <div class="key"><b>Space</b> 점프</div>
       <div class="key"><b>마우스</b> 카메라 회전</div>
       <div class="key"><b>R</b> 재시작</div>
+      <div class="key"><b>C</b> 베기·줍기·불에 넣기</div>
+      <div class="key"><b>X</b> 먹기</div>
+      <div class="key"><b>V</b> 손전등</div>
     </div>
     <div class="grid" id="charGrid"></div>
     <p class="sub" style="margin-bottom:20px">
@@ -137,7 +173,7 @@
       문은 몸이 닿으면 저절로 열립니다. 2층(아이 방)에는 침대·장난감 상자·<b>책꽂이</b>가 있고, <b>엄마</b>가 돌아다니며 그곳 가구를 모두 부숩니다.<br>
       가끔 엄마가 <b>스파이더맨처럼 날아와 아이를 낚아채고</b> 주먹다짐을 합니다.
       밀린 몸이 벽에 부딪치면 <b>벽에 진짜 구멍</b>이 뚫려 건너편이 보입니다.<br>
-      <b>3분마다 낮과 밤</b>이 바뀝니다.<br>
+      <b>1분마다 낮과 밤</b>이 바뀝니다.<br>
       안방 서쪽 벽의 <b>개구멍</b>으로 언제든 집 밖에 나갈 수 있습니다(벽에 뚫린 구멍으로도 됩니다).
       집 앞에 <b>엄마 자동차</b>가 세워져 있습니다. 몸을 대면 훔쳐 타고 <b>5배</b>로 달립니다
       (Space 로 내립니다). 다만 <b>차를 타면 아이가 2.6배로 쫓아옵니다.</b>
@@ -175,6 +211,7 @@
       <div><b id="ovLv">1</b><span>도달 레벨</span></div>
       <div><b id="ovTime">0:00</b><span>생존 시간</span></div>
       <div><b id="ovChar">설탕</b><span>마지막 모습</span></div>
+      <div><b id="ovNights">0 / 99</b><span>버틴 밤</span></div>
     </div>
     <button id="againBtn">다시 도전</button>
   </div>
@@ -203,7 +240,7 @@ if (typeof THREE === 'undefined') {
  * ------------------------------------------------------------------ */
 
 var G = 9.8;                 // 중력 (트램펄린이 약 0.5초에 가구 위로 오르도록 맞춘 값)
-var DAY_LENGTH = 180;        // 3분마다 낮과 밤이 바뀐다
+var DAY_LENGTH = 60;         // 1분마다 낮과 밤이 바뀐다 (낮 1분 + 밤 1분 = 하루)
 var LEVEL_TIME = 60;         // 1분마다 레벨 업
 
 // 애벌레는 항상 과일들보다 느리다. 레벨이 올라도 따라잡히진 않고 압박만 커진다.
@@ -2947,7 +2984,7 @@ function clampWorld(p) {
     (p.x > -13.95 && p.x < 4.95 && p.z > -16.55 && p.z < 5.0) ||    // 집 안
     (p.x > -8.75 && p.x < 8.75 && p.z >= 5.0 && p.z < 17.95);       // 마당
   if (!insideShell) {
-    p.x = Math.max(-344, Math.min(80, p.x));      // 서쪽 300m 학교 ~ 남쪽 300m 도시
+    p.x = Math.max(-344, Math.min(FOREST.maxX - 1, p.x));   // 서쪽 300m 학교 ~ 동쪽 숲
     p.z = Math.max(-44, Math.min(360, p.z));
     return;
   }
@@ -3337,6 +3374,8 @@ addEventListener('keydown', function (e) {
   if (e.code === 'KeyE' && game.running) pitchTent();
   if (e.code === 'KeyQ' && game.running) useSummon();
   if (e.code === 'KeyF' && game.running) playerFart();
+  if (e.code === 'KeyC' && game.running && !e.repeat) forestAction();
+  if (e.code === 'KeyX' && game.running && !e.repeat) eatFood();
   // 구멍에서 나오기는 누른 순간에 바로 반응한다 (프레임 사이에 놓치지 않도록)
   if (e.code === 'Space' && game.running && player.inHole && player.holeCool <= 0) leaveHole(false);
   if (e.code === 'Space' && game.running && player.inCar && player.carCool <= 0) {
@@ -3484,6 +3523,7 @@ function restart() {
   wallPieces.length = 0;
   for (var i = 0; i < caterpillar.trail.length; i++) caterpillar.trail[i].copy(caterpillar.pos);
   spawnFriends();
+  resetForest();
   camYaw = 0; camPitch = 0.28;
   document.getElementById('start').classList.add('hide');
   document.getElementById('over').classList.add('hide');
@@ -3499,6 +3539,7 @@ function gameOver(title, sub) {
   document.getElementById('ovLv').textContent = game.level;
   document.getElementById('ovTime').textContent = fmt(game.time);
   document.getElementById('ovChar').textContent = charDef().name;
+  document.getElementById('ovNights').textContent = SURV.nights + ' / ' + NIGHTS_GOAL;
   document.getElementById('over').classList.remove('hide');
 }
 
@@ -3764,6 +3805,7 @@ function killCaterpillar() {
   document.getElementById('ovLv').textContent = game.level;
   document.getElementById('ovTime').textContent = fmt(game.time);
   document.getElementById('ovChar').textContent = charDef().name;
+  document.getElementById('ovNights').textContent = SURV.nights + ' / ' + NIGHTS_GOAL;
   document.getElementById('over').classList.remove('hide');
 }
 
@@ -4393,8 +4435,8 @@ function updateDayNight(dt) {
   var wantNight = Math.floor(phase) % 2 === 1;
   if (wantNight !== night.on) {
     night.on = wantNight;
-    toast(wantNight ? '🌙 밤이 되었다' : '☀️ 아침이 밝았다',
-          wantNight ? '3분 동안 어두워집니다' : '3분 동안 환합니다');
+    if (wantNight) toast('🌙 ' + Math.floor((Math.floor(game.time / DAY_LENGTH) + 1) / 2) + '번째 밤이 되었다',
+                         '모닥불 곁을 지키세요 — 사슴과 늑대가 돌아다닙니다');
   }
   var want = wantNight ? 1 : 0;
   night.blend += (want - night.blend) * Math.min(1, dt * 0.6);   // 천천히 저물고 밝아진다
@@ -4473,7 +4515,7 @@ function updatePlayer(dt) {
   // 집 밖 길에서는 학교까지 멀어서 훨씬 빨리 달린다. 자동차를 타면 5배.
   var inCity = player.pos.x > CITY.minX && player.pos.x < CITY.maxX &&
                player.pos.z > CITY.minZ && player.pos.z < CITY.maxZ;
-  var onRoad = (player.pos.x < -14.2 || player.pos.z > 40) && !inCity;
+  var onRoad = (player.pos.x < -14.2 || player.pos.z > 40) && !inCity && !inForest(player.pos);
   player.carCool -= dt;
   var speed = def.speed * (player.hidden ? 0.55 : 1) *
               (player.inCar ? 5 : (onRoad ? 2.6 : 1));
@@ -5026,7 +5068,7 @@ function updateHUD() {
                    '<br><span style="opacity:.65">' +
                    (player.inCar ? '🚗 <b>엄마 차</b> — 5배 (Space 로 내리기)' : '🏃 길에서는 2.6배로 달립니다') +
                    '</span>';
-  } else if (player.pos.z > 19) {
+  } else if (player.pos.z > 19 && !inForest(player.pos)) {
     var toCity = Math.max(0, (CITY.minZ + 30) - player.pos.z);
     sd.style.display = '';
     sd.innerHTML = (toCity > 1 ? '🏙️ 도시까지 <b>' + Math.round(toCity) + 'm</b>' : '🏙️ <b>도시 도착</b>') +
@@ -5543,6 +5585,660 @@ function inTent(p) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  숲의 99일 밤 — 모닥불을 지키며 99번째 밤까지 버틴다
+ *  (마당 대문 밖 동쪽 숲. 나무를 베어 모닥불에 넣고, 밤에는 사슴 괴물을 피한다)
+ * ------------------------------------------------------------------ */
+
+var NIGHTS_GOAL = 99;
+var FOREST = { minX:25, maxX:165, minZ:-44, maxZ:100 };
+var CAMP = { x:56, z:30 };
+var LOG_MAX = 8;
+var FIRE = { fuel:60, fed:0, level:1, group:new THREE.Group(), flames:[], light:null, ring:null };
+var SURV = { hp:100, hunger:100, logs:0, raw:0, cooked:0, berries:0, rescued:0,
+             beam:100, nights:0, hurtCool:0, starveMsg:0, actCool:0 };
+var TREES = [], BUSHES = [], WOLVES = [], KIDS = [];
+var DEER = { pos:new THREE.Vector3(), yaw:0, state:'gone', t:0, group:new THREE.Group(),
+             legs:[], arms:[], eyeLight:null };
+var FLASH = { light:null, target:new THREE.Object3D() };
+
+var fseed = 99;
+function frand() { fseed = (fseed * 16807) % 2147483647; return (fseed - 1) / 2147483646; }
+
+function inForest(p) {
+  return p.x > FOREST.minX - 2 && p.x < FOREST.maxX && p.z > FOREST.minZ && p.z < FOREST.maxZ;
+}
+function safeR() { return FIRE.fuel > 0 ? 5 + FIRE.level * 2.5 : 0; }
+function inCampSafe(p) { return Math.hypot(p.x - CAMP.x, p.z - CAMP.z) < safeR(); }
+function nightsSurvived() { return Math.floor(Math.floor(game.time / DAY_LENGTH) / 2); }
+function keepInForest(p) {
+  p.x = Math.max(FOREST.minX + 1, Math.min(FOREST.maxX - 1, p.x));
+  p.z = Math.max(FOREST.minZ + 1, Math.min(FOREST.maxZ - 1, p.z));
+}
+
+(function buildForest() {
+  function plane(x0, x1, z0, z1, color, y) {
+    var pl = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0),
+      new THREE.MeshStandardMaterial({ color:color, roughness:1 }));
+    pl.rotation.x = -Math.PI / 2;
+    pl.position.set((x0 + x1) / 2, y, (z0 + z1) / 2);
+    pl.receiveShadow = true;
+    scene.add(pl);
+  }
+  // 땅 (도시로 가는 길의 풀밭과 겹치지 않게 두 조각)
+  plane(45, FOREST.maxX, FOREST.minZ, FOREST.maxZ, 0x4a6636, -0.02);
+  plane(25, 45, FOREST.minZ, 8, 0x4a6636, -0.02);
+  // 도시로 가는 길에서 모닥불까지 이어지는 흙길
+  plane(3.2, CAMP.x - 8, 36.4, 38.8, 0x7a6244, 0.006);
+  plane(CAMP.x - 9, CAMP.x - 6.6, 30, 38.8, 0x7a6244, 0.007);
+  var clearing = new THREE.Mesh(new THREE.CircleGeometry(12, 32),
+    new THREE.MeshStandardMaterial({ color:0x6b5a40, roughness:1 }));
+  clearing.rotation.x = -Math.PI / 2;
+  clearing.position.set(CAMP.x, 0.004, CAMP.z);
+  clearing.receiveShadow = true;
+  scene.add(clearing);
+
+  // 표지판 — 도시로 가는 길 옆
+  var c = document.createElement('canvas');
+  c.width = 256; c.height = 96;
+  var g2 = c.getContext('2d');
+  g2.fillStyle = '#4a3522'; g2.fillRect(0, 0, 256, 96);
+  g2.fillStyle = '#ffd9a0'; g2.font = 'bold 36px sans-serif'; g2.textAlign = 'center';
+  g2.fillText('숲 · 모닥불 →', 128, 60);
+  var post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 8), mat(0x6b4a2c, 0.9));
+  post.position.set(4.6, 1.1, 40); scene.add(post);
+  var board = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 0.08),
+    new THREE.MeshBasicMaterial({ map:new THREE.CanvasTexture(c) }));
+  board.position.set(4.6, 2.0, 40); scene.add(board);
+
+  /* ---- 모닥불 ---- */
+  var g = FIRE.group;
+  var stone = mat(0x7d7a74, 0.95);
+  for (var i = 0; i < 10; i++) {
+    var a = i / 10 * Math.PI * 2;
+    var s = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), stone);
+    s.position.set(Math.cos(a) * 1.05, 0.12, Math.sin(a) * 1.05);
+    s.scale.y = 0.7; g.add(s);
+  }
+  var logMat = mat(0x5a3b22, 0.95);
+  for (var k = 0; k < 4; k++) {
+    var lg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.5, 7), logMat);
+    lg.rotation.z = Math.PI / 2 - 0.35;
+    lg.rotation.y = k * Math.PI / 4;
+    lg.position.y = 0.3; g.add(lg);
+  }
+  [[0xff5a1a, 0.62, 1.6], [0xffa02a, 0.45, 1.25], [0xffe07a, 0.26, 0.85]].forEach(function (f) {
+    var fl = new THREE.Mesh(new THREE.ConeGeometry(f[1], f[2], 8),
+      new THREE.MeshBasicMaterial({ color:f[0], transparent:true, opacity:0.88 }));
+    fl.position.y = 0.3 + f[2] / 2;
+    fl.userData.h = f[2];
+    g.add(fl); FIRE.flames.push(fl);
+  });
+  FIRE.light = new THREE.PointLight(0xff9a3a, 2.2, 30, 1.3);
+  FIRE.light.position.y = 1.4; g.add(FIRE.light);
+  FIRE.ring = new THREE.Mesh(new THREE.RingGeometry(0.97, 1.0, 64),
+    new THREE.MeshBasicMaterial({ color:0xffa040, transparent:true, opacity:0.45, side:THREE.DoubleSide }));
+  FIRE.ring.rotation.x = -Math.PI / 2;
+  FIRE.ring.position.y = 0.03;
+  g.add(FIRE.ring);
+  g.position.set(CAMP.x, 0, CAMP.z);
+  scene.add(g);
+
+  // 통나무 의자
+  [[3.2, 0.4], [-3.0, -0.9], [0.6, 3.3]].forEach(function (o) {
+    var bench = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 2.0, 8), logMat);
+    bench.rotation.z = Math.PI / 2; bench.rotation.y = Math.atan2(o[0], o[1]) + Math.PI / 2;
+    bench.position.set(CAMP.x + o[0], 0.28, CAMP.z + o[1]); scene.add(bench);
+  });
+
+  /* ---- 나무 ---- */
+  var trunkGeo = new THREE.CylinderGeometry(0.28, 0.4, 4.2, 7);
+  var stumpGeo = new THREE.CylinderGeometry(0.38, 0.42, 0.45, 7);
+  var coneA = new THREE.ConeGeometry(2.2, 3.8, 8), coneB = new THREE.ConeGeometry(1.55, 3.0, 8);
+  var barkMat = mat(0x5b3f28, 0.95), cutMat = mat(0xc9a676, 0.9);
+  var leafMats = [mat(0x2f5a2c, 0.95), mat(0x284e2a, 0.95), mat(0x3a6634, 0.95)];
+  var tries = 0;
+  while (TREES.length < 150 && tries++ < 4000) {
+    var x = FOREST.minX + 2 + frand() * (FOREST.maxX - FOREST.minX - 4);
+    var z = FOREST.minZ + 2 + frand() * (FOREST.maxZ - FOREST.minZ - 4);
+    if (Math.hypot(x - CAMP.x, z - CAMP.z) < 14) continue;          // 모닥불 빈터
+    if (z > 34 && z < 41.5 && x < CAMP.x) continue;                  // 흙길
+    if (x < 45 && z > 8 && x < 30) continue;
+    var close = false;
+    for (var t = 0; t < TREES.length; t++) {
+      if (Math.hypot(TREES[t].x - x, TREES[t].z - z) < 4.2) { close = true; break; }
+    }
+    if (close) continue;
+    var sc = 0.85 + frand() * 0.5;
+    var tg = new THREE.Group();
+    var stump = new THREE.Mesh(stumpGeo, cutMat); stump.position.y = 0.22; tg.add(stump);
+    var top = new THREE.Group();
+    var trunk = new THREE.Mesh(trunkGeo, barkMat); trunk.position.y = 2.1; top.add(trunk);
+    var lm = leafMats[TREES.length % 3];
+    var ca = new THREE.Mesh(coneA, lm); ca.position.y = 4.4; top.add(ca);
+    var cb = new THREE.Mesh(coneB, lm); cb.position.y = 6.2; top.add(cb);
+    tg.add(top);
+    tg.scale.setScalar(sc);
+    tg.position.set(x, 0, z);
+    tg.rotation.y = frand() * 6.28;
+    scene.add(tg);
+    TREES.push({ x:x, z:z, r:0.36 * sc, hp:4, group:tg, top:top, regrow:0, shake:0 });
+  }
+
+  /* ---- 열매 덤불 ---- */
+  var bushMat = mat(0x356b30, 0.95), berryMat = mat(0xd02a3c, 0.4);
+  var bushGeo = new THREE.SphereGeometry(0.75, 10, 8), berryGeo = new THREE.SphereGeometry(0.1, 6, 5);
+  tries = 0;
+  while (BUSHES.length < 24 && tries++ < 2000) {
+    var bx = FOREST.minX + 4 + frand() * (FOREST.maxX - FOREST.minX - 8);
+    var bz = FOREST.minZ + 4 + frand() * (FOREST.maxZ - FOREST.minZ - 8);
+    if (Math.hypot(bx - CAMP.x, bz - CAMP.z) < 13) continue;
+    if (bx < 30 && bz > 8) continue;
+    var near = TREES.some(function (tr) { return Math.hypot(tr.x - bx, tr.z - bz) < 2.2; });
+    if (near) continue;
+    var bg = new THREE.Group();
+    var bush = new THREE.Mesh(bushGeo, bushMat); bush.position.y = 0.5; bush.scale.y = 0.75; bg.add(bush);
+    var berries = new THREE.Group();
+    for (var n = 0; n < 7; n++) {
+      var ba = n / 7 * 6.28, by = 0.35 + (n % 3) * 0.2;
+      var be = new THREE.Mesh(berryGeo, berryMat);
+      be.position.set(Math.cos(ba) * 0.68, by, Math.sin(ba) * 0.68);
+      berries.add(be);
+    }
+    bg.add(berries);
+    bg.position.set(bx, 0, bz);
+    scene.add(bg);
+    BUSHES.push({ x:bx, z:bz, group:bg, berries:berries, ripe:true, regrow:0 });
+  }
+
+  /* ---- 늑대 ---- */
+  var furMat = mat(0x5d5b58, 0.95), darkFur = mat(0x3c3a38, 0.95);
+  var eyeMat = new THREE.MeshBasicMaterial({ color:0xffe04a });
+  [[92, -18], [128, 8], [140, 62], [104, 78], [150, -30]].forEach(function (h) {
+    var wg = new THREE.Group();
+    var body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.48, 1.2), furMat); body.position.y = 0.72; wg.add(body);
+    var head = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.36, 0.42), furMat); head.position.set(0, 0.95, 0.75); wg.add(head);
+    var snout = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.16, 0.3), darkFur); snout.position.set(0, 0.88, 1.05); wg.add(snout);
+    [-1, 1].forEach(function (sd) {
+      var ear = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.18, 4), darkFur);
+      ear.position.set(sd * 0.12, 1.2, 0.68); wg.add(ear);
+      var eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 4), eyeMat);
+      eye.position.set(sd * 0.1, 1.0, 0.97); wg.add(eye);
+    });
+    var tail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.55), darkFur);
+    tail.position.set(0, 0.8, -0.8); tail.rotation.x = 0.6; wg.add(tail);
+    var legs = [];
+    [[-0.17, 0.4], [0.17, 0.4], [-0.17, -0.4], [0.17, -0.4]].forEach(function (l) {
+      var leg = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.5, 0.12), darkFur);
+      leg.position.set(l[0], 0.25, l[1]); wg.add(leg); legs.push(leg);
+    });
+    scene.add(wg);
+    WOLVES.push({ pos:new THREE.Vector3(h[0], 0, h[1]), home:new THREE.Vector3(h[0], 0, h[1]),
+                  goal:new THREE.Vector3(h[0], 0, h[1]), yaw:0, hp:3, dead:0, cool:0, knock:0,
+                  flash:0, group:wg, legs:legs, body:body, baseMat:furMat, chase:false });
+  });
+
+  /* ---- 길 잃은 아이들 ---- */
+  var shirts = [0x3a7bd5, 0xe0a030, 0xd0457a, 0x44aa66];
+  [[150, -32], [156, 88], [96, 93], [140, 32]].forEach(function (h, i) {
+    var kg = new THREE.Group();
+    var legM = mat(0x33415a, 0.8);
+    [-0.09, 0.09].forEach(function (lx) {
+      var leg = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.4, 6), legM);
+      leg.position.set(lx, 0.2, 0); kg.add(leg);
+    });
+    var body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.22, 0.5, 10), mat(shirts[i], 0.7));
+    body.position.y = 0.65; kg.add(body);
+    var head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 10), mat(0xf0c8a0, 0.6));
+    head.position.y = 1.1; kg.add(head);
+    var hair = new THREE.Mesh(new THREE.SphereGeometry(0.21, 12, 8, 0, 6.28, 0, 1.4), mat(0x3a2a1a, 0.8));
+    hair.position.y = 1.13; kg.add(hair);
+    var marker = new THREE.Mesh(new THREE.OctahedronGeometry(0.18),
+      new THREE.MeshBasicMaterial({ color:0xffe04a }));
+    marker.position.y = 1.75; kg.add(marker);
+    var glow = new THREE.PointLight(0xffe08a, 0.9, 7, 1.5);
+    glow.position.y = 1.6; kg.add(glow);
+    kg.position.set(h[0], 0, h[1]);
+    scene.add(kg);
+    KIDS.push({ pos:new THREE.Vector3(h[0], 0, h[1]), home:new THREE.Vector3(h[0], 0, h[1]),
+                state:'lost', group:kg, marker:marker, glow:glow, idx:i });
+  });
+
+  /* ---- 사슴 괴물 — 밤에만 나타난다 ---- */
+  var dg = DEER.group;
+  var black = mat(0x14110e, 0.95), bone = mat(0xe8e0cc, 0.6);
+  var torso = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.4, 0.45), black); torso.position.y = 2.35; dg.add(torso);
+  var neck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.5, 0.22), black); neck.position.y = 3.25; dg.add(neck);
+  var skull = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.36, 0.78), bone); skull.position.set(0, 3.6, 0.2); dg.add(skull);
+  var jaw = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.12, 0.5), bone); jaw.position.set(0, 3.38, 0.36); dg.add(jaw);
+  [-1, 1].forEach(function (sd) {
+    var eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color:0xff2a1a }));
+    eye.position.set(sd * 0.13, 3.68, 0.38); dg.add(eye);
+    var ant = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 1.1, 5), bone);
+    ant.position.set(sd * 0.32, 4.15, 0.05); ant.rotation.z = -sd * 0.55; dg.add(ant);
+    var br1 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.55, 5), bone);
+    br1.position.set(sd * 0.52, 4.35, 0.2); br1.rotation.x = 0.7; dg.add(br1);
+    var br2 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.6, 5), bone);
+    br2.position.set(sd * 0.62, 4.65, -0.05); br2.rotation.z = -sd * 1.1; dg.add(br2);
+    var leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.7, 0.18), black);
+    leg.position.set(sd * 0.2, 0.85, 0); dg.add(leg); DEER.legs.push(leg);
+    var arm = new THREE.Mesh(new THREE.BoxGeometry(0.13, 1.7, 0.13), black);
+    arm.position.set(sd * 0.48, 2.1, 0); dg.add(arm); DEER.arms.push(arm);
+  });
+  DEER.eyeLight = new THREE.PointLight(0xff2a1a, 1.2, 9, 1.5);
+  DEER.eyeLight.position.set(0, 3.7, 0.6); dg.add(DEER.eyeLight);
+  dg.visible = false;
+  scene.add(dg);
+
+  /* ---- 손전등 (V) ---- */
+  FLASH.light = new THREE.SpotLight(0xfff4d6, 0, 30, 0.36, 0.5, 1.2);
+  scene.add(FLASH.light);
+  scene.add(FLASH.target);
+  FLASH.light.target = FLASH.target;
+})();
+
+function resetForest() {
+  FIRE.fuel = 60; FIRE.fed = 0; FIRE.level = 1;
+  SURV.hp = 100; SURV.hunger = 100; SURV.logs = 0; SURV.raw = 0; SURV.cooked = 0; SURV.berries = 0;
+  SURV.rescued = 0; SURV.beam = 100; SURV.nights = 0; SURV.hurtCool = 0; SURV.starveMsg = 0; SURV.actCool = 0;
+  TREES.forEach(function (t) { t.hp = 4; t.regrow = 0; t.shake = 0; t.top.visible = true; t.top.rotation.set(0, 0, 0); });
+  BUSHES.forEach(function (b) { b.ripe = true; b.regrow = 0; b.berries.visible = true; });
+  WOLVES.forEach(function (w) {
+    w.pos.copy(w.home); w.goal.copy(w.home); w.hp = 3; w.dead = 0; w.cool = 0; w.knock = 0;
+    w.chase = false; w.group.visible = true;
+  });
+  KIDS.forEach(function (k) {
+    k.state = 'lost'; k.pos.copy(k.home); k.marker.visible = true; k.glow.visible = true;
+  });
+  DEER.state = 'gone'; DEER.group.visible = false;
+}
+
+function nearestTree(p, maxD) {
+  var best = null, bd = maxD;
+  TREES.forEach(function (t) {
+    if (t.hp <= 0) return;
+    var d = Math.hypot(t.x - p.x, t.z - p.z) - t.r;
+    if (d < bd) { bd = d; best = t; }
+  });
+  return best;
+}
+
+// C — 가까운 것에 알맞은 행동: 모닥불에 넣기/굽기 > 늑대 치기 > 나무 베기 > 열매 따기
+function forestAction() {
+  if (SURV.actCool > 0 || player.inHole || player.inCar) return;
+  SURV.actCool = 0.28;
+  var p = player.pos, reach = charDef().r + 1.6;
+
+  if (Math.hypot(p.x - CAMP.x, p.z - CAMP.z) < 3.6) {
+    var did = false;
+    if (SURV.logs > 0) {
+      var n = SURV.logs, lvBefore = FIRE.level;
+      FIRE.fuel = Math.min(100, FIRE.fuel + n * 18);
+      FIRE.fed += n; SURV.logs = 0;
+      FIRE.level = Math.min(6, 1 + Math.floor(FIRE.fed / 10));
+      if (FIRE.level > lvBefore) toast('🔥 모닥불 레벨 ' + FIRE.level + '!', '안전한 범위가 ' + safeR().toFixed(0) + 'm 로 넓어졌다');
+      else toast('🔥 통나무 ' + n + '개를 넣었다', '연료 ' + Math.round(FIRE.fuel) + '%');
+      did = true;
+    }
+    if (SURV.raw > 0 && FIRE.fuel > 0) {
+      SURV.cooked += SURV.raw;
+      if (!did) toast('🍖 고기 ' + SURV.raw + '개를 구웠다', 'X 로 먹으면 배가 많이 찹니다');
+      SURV.raw = 0; did = true;
+    }
+    if (did) return;
+  }
+
+  for (var i = 0; i < WOLVES.length; i++) {
+    var w = WOLVES[i];
+    if (w.dead > 0) continue;
+    var dx = w.pos.x - p.x, dz = w.pos.z - p.z, d = Math.hypot(dx, dz);
+    if (d < reach + 0.9) {
+      w.hp--; w.flash = 0.25; w.knock = 0.35;
+      w.pos.x += dx / (d || 1) * 1.6; w.pos.z += dz / (d || 1) * 1.6;
+      shatter(new THREE.Vector3(w.pos.x, 0.8, w.pos.z), 0x8a2020, 6);
+      if (w.hp <= 0) {
+        w.dead = 70; w.group.visible = false;
+        SURV.raw += 2;
+        toast('🐺 늑대를 쓰러뜨렸다!', '날고기 2개 — 모닥불에서 C 로 구워 드세요');
+      }
+      return;
+    }
+  }
+
+  var tree = nearestTree(p, reach);
+  if (tree) {
+    if (SURV.logs >= LOG_MAX) { toast('🪵 통나무를 더 들 수 없다', '모닥불에 가서 C 로 넣으세요'); return; }
+    tree.hp--; tree.shake = 0.3;
+    shatter(new THREE.Vector3(tree.x, 1.0, tree.z), 0xc9a676, 5);
+    if (tree.hp <= 0) {
+      tree.top.visible = false; tree.regrow = 120;
+      var got = Math.min(2, LOG_MAX - SURV.logs);
+      SURV.logs += got;
+      toast('🪵 나무가 쓰러졌다! +' + got, '통나무 ' + SURV.logs + ' / ' + LOG_MAX);
+    }
+    return;
+  }
+
+  for (var j = 0; j < BUSHES.length; j++) {
+    var b = BUSHES[j];
+    if (!b.ripe || Math.hypot(b.x - p.x, b.z - p.z) > reach + 0.8) continue;
+    b.ripe = false; b.regrow = 60; b.berries.visible = false;
+    SURV.berries += 3;
+    toast('🍒 열매 3개를 땄다', 'X 로 먹기');
+    return;
+  }
+}
+
+// X — 가진 음식 중 가장 좋은 것부터 먹는다
+function eatFood() {
+  if (!game.running) return;
+  if (SURV.cooked > 0) { SURV.cooked--; SURV.hunger = Math.min(100, SURV.hunger + 45); toast('🍖 구운 고기를 먹었다', '배고픔 +45'); }
+  else if (SURV.berries > 0) { SURV.berries--; SURV.hunger = Math.min(100, SURV.hunger + 12); toast('🍒 열매를 먹었다', '배고픔 +12'); }
+  else if (SURV.raw > 0) {
+    SURV.raw--; SURV.hunger = Math.min(100, SURV.hunger + 15); SURV.hp -= 8;
+    toast('🤢 날고기를 먹었다', '배고픔 +15 · 배탈로 체력 -8');
+  } else toast('먹을 것이 없다', '숲에서 열매를 따거나 늑대를 사냥하세요');
+}
+
+function hurtPlayer(dmg, fromX, fromZ, push) {
+  SURV.hp -= dmg;
+  var dx = player.pos.x - fromX, dz = player.pos.z - fromZ, d = Math.hypot(dx, dz) || 1;
+  player.vel.x = dx / d * push; player.vel.z = dz / d * push;
+  player.vel.y = 3.2; player.grounded = false;
+  shatter(new THREE.Vector3(player.pos.x, player.pos.y + 0.3, player.pos.z), 0xc02030, 8);
+}
+
+function stepToward(pos, tx, tz, speed, dt) {
+  var dx = tx - pos.x, dz = tz - pos.z, d = Math.hypot(dx, dz);
+  if (d < 0.01) return 0;
+  var s = Math.min(d, speed * dt);
+  pos.x += dx / d * s; pos.z += dz / d * s;
+  return Math.atan2(dx, dz);
+}
+
+function updateFire(dt) {
+  if (FIRE.fuel > 0) {
+    FIRE.fuel = Math.max(0, FIRE.fuel - (night.on ? 1.4 : 0.8) * dt);
+    if (FIRE.fuel === 0) toast('🔥 모닥불이 꺼졌다!', '통나무를 넣으면 다시 붙습니다 — 이제 안전한 곳이 없다');
+  }
+  var f = FIRE.fuel / 100, lit = FIRE.fuel > 0;
+  FIRE.flames.forEach(function (fl, i) {
+    fl.visible = lit;
+    var fk = 0.85 + Math.sin(game.time * (9 + i * 3)) * 0.1 + Math.sin(game.time * 5.3 + i) * 0.07;
+    var s = (0.45 + f * 0.9 + FIRE.level * 0.08) * fk;
+    fl.scale.set(s, s, s);
+    fl.position.y = 0.3 + fl.userData.h * s / 2;
+  });
+  var r = safeR();
+  FIRE.light.intensity = lit ? (1.2 + f * 2.2) * (0.9 + Math.sin(game.time * 13) * 0.1) : 0;
+  FIRE.light.distance = r * 2.6 + 6;
+  FIRE.ring.visible = lit;
+  FIRE.ring.scale.setScalar(Math.max(0.01, r));
+}
+
+function blocksView(t) {
+  var ax = camera.position.x, az = camera.position.z;
+  var bx = player.pos.x - ax, bz = player.pos.z - az, len2 = bx * bx + bz * bz;
+  if (len2 < 1e-6) return false;
+  var u = Math.max(0, Math.min(1, ((t.x - ax) * bx + (t.z - az) * bz) / len2));
+  if (u > 0.92) return false;                     // 플레이어 바로 옆/뒤 나무는 그대로
+  return Math.hypot(ax + bx * u - t.x, az + bz * u - t.z) < t.r + 0.9;
+}
+
+function updateTrees(dt) {
+  var p = player.pos, pr = charDef().r;
+  TREES.forEach(function (t) {
+    if (t.hp <= 0) {
+      t.regrow -= dt;
+      if (t.regrow <= 0) { t.hp = 4; t.top.visible = true; }
+      return;
+    }
+    if (t.shake > 0) {
+      t.shake -= dt;
+      t.top.rotation.z = Math.sin(t.shake * 60) * 0.04;
+      if (t.shake <= 0) t.top.rotation.z = 0;
+    }
+    // 카메라와 플레이어 사이를 가리는 나무는 잠깐 숨긴다
+    t.top.visible = !blocksView(t);
+    // 줄기에 부딪히면 밀려난다 (원 충돌)
+    if (player.inCar) return;
+    var dx = p.x - t.x, dz = p.z - t.z, d = Math.hypot(dx, dz), min = t.r + pr;
+    if (d < min && d > 1e-4 && p.y < 4) { p.x = t.x + dx / d * min; p.z = t.z + dz / d * min; }
+  });
+  BUSHES.forEach(function (b) {
+    if (b.ripe) return;
+    b.regrow -= dt;
+    if (b.regrow <= 0) { b.ripe = true; b.berries.visible = true; }
+  });
+}
+
+function updateWolves(dt) {
+  var p = player.pos, pr = charDef().r;
+  var huntable = inForest(p) && !inCampSafe(p) && !player.inHole;
+  WOLVES.forEach(function (w) {
+    if (w.dead > 0) {
+      w.dead -= dt;
+      if (w.dead <= 0) { w.hp = 3; w.pos.copy(w.home); w.group.visible = true; }
+      return;
+    }
+    w.cool -= dt; w.flash -= dt; w.knock -= dt;
+    var dx = p.x - w.pos.x, dz = p.z - w.pos.z, d = Math.hypot(dx, dz);
+    var sight = night.on ? 22 : 14;
+    w.chase = huntable && d < sight && w.knock <= 0;
+    var sp = 0, yaw;
+    if (w.chase) {
+      sp = night.on ? 3.7 : 3.2;
+      yaw = stepToward(w.pos, p.x, p.z, sp, dt);
+      if (d < pr + 0.9 && w.cool <= 0) {
+        w.cool = 1.3;
+        hurtPlayer(night.on ? 14 : 10, w.pos.x, w.pos.z, 5);
+        toast('🐺 늑대에게 물렸다!', 'C 로 반격하거나 모닥불로 도망치세요');
+      }
+    } else if (w.knock <= 0) {
+      if (Math.hypot(w.goal.x - w.pos.x, w.goal.z - w.pos.z) < 0.5) {
+        w.goal.set(w.home.x + (Math.random() - 0.5) * 16, 0, w.home.z + (Math.random() - 0.5) * 16);
+      }
+      sp = 1.2;
+      yaw = stepToward(w.pos, w.goal.x, w.goal.z, sp, dt);
+    }
+    // 모닥불 빛 안으로는 들어오지 못한다
+    var cr = safeR() + 1, cx = w.pos.x - CAMP.x, cz = w.pos.z - CAMP.z, cd = Math.hypot(cx, cz);
+    if (cr > 1 && cd < cr && cd > 1e-4) { w.pos.x = CAMP.x + cx / cd * cr; w.pos.z = CAMP.z + cz / cd * cr; }
+    keepInForest(w.pos);
+    if (yaw !== undefined && yaw !== 0) w.yaw = yaw;
+    w.group.position.copy(w.pos);
+    w.group.rotation.y = w.yaw;
+    var swing = sp > 0 ? Math.sin(game.time * sp * 5) * 0.5 : 0;
+    w.legs.forEach(function (l, i) { l.rotation.x = (i % 2 ? swing : -swing); });
+    w.body.material = w.flash > 0 ? FLASH_HIT_MAT : w.baseMat;
+    w.group.scale.setScalar(w.flash > 0 ? 1.08 : 1);
+  });
+}
+var FLASH_HIT_MAT = mat(0xb04040, 0.9);
+
+function spawnDeer() {
+  var cx = inForest(player.pos) ? player.pos.x : CAMP.x, cz = inForest(player.pos) ? player.pos.z : CAMP.z;
+  for (var i = 0; i < 20; i++) {
+    var a = Math.random() * Math.PI * 2, r = 38 + Math.random() * 14;
+    DEER.pos.set(cx + Math.cos(a) * r, 0, cz + Math.sin(a) * r);
+    keepInForest(DEER.pos);
+    if (Math.hypot(DEER.pos.x - player.pos.x, DEER.pos.z - player.pos.z) > 25) break;
+  }
+  DEER.state = 'hunt'; DEER.t = 0;
+  DEER.group.visible = true;
+  toast('🦌 숲 어딘가에서 사슴이 깨어났다…', '모닥불 빛 안에 있거나 V 손전등으로 비추세요');
+}
+
+function updateDeer(dt) {
+  if (!night.on) {
+    if (DEER.state !== 'gone') { DEER.state = 'gone'; DEER.group.visible = false; }
+    return;
+  }
+  if (DEER.state === 'gone') spawnDeer();
+  var p = player.pos, pr = charDef().r;
+  var dx = p.x - DEER.pos.x, dz = p.z - DEER.pos.z, d = Math.hypot(dx, dz);
+  var sp = 0, yaw;
+  DEER.t -= dt;
+
+  // 손전등에 비치면 얼어붙는다
+  if (FLASH.light.intensity > 0 && d < 24 && DEER.state !== 'stun' && DEER.state !== 'flee') {
+    var fx = Math.sin(camYaw), fz = Math.cos(camYaw);
+    if ((-dx * fx - dz * fz) / (d || 1) > Math.cos(0.36)) {
+      DEER.state = 'stun'; DEER.t = 2.5;
+      toast('🔦 사슴이 빛에 얼어붙었다!', '지금 도망치세요');
+    }
+  }
+
+  if (DEER.state === 'stun') {
+    if (DEER.t <= 0) { DEER.state = 'flee'; DEER.t = 5; }
+  } else if (DEER.state === 'flee') {
+    sp = 5;
+    yaw = stepToward(DEER.pos, DEER.pos.x - dx, DEER.pos.z - dz, sp, dt);
+    if (DEER.t <= 0) DEER.state = 'hunt';
+  } else {
+    var hunting = inForest(p) && !inCampSafe(p) && !player.inHole;
+    if (hunting) {
+      sp = Math.min(5.4, 4.2 + SURV.nights * 0.03);
+      yaw = stepToward(DEER.pos, p.x, p.z, sp, dt);
+      if (d < pr + 1.1) {
+        hurtPlayer(30, DEER.pos.x, DEER.pos.z, 9);
+        toast('🦌 사슴에게 당했다!', '체력 -30');
+        DEER.state = 'flee'; DEER.t = 6;
+      }
+    } else {
+      // 모닥불 빛 가장자리를 맴돌며 기다린다
+      var a = Math.atan2(DEER.pos.z - CAMP.z, DEER.pos.x - CAMP.x) + dt * 0.12;
+      var rr = safeR() + 6;
+      sp = 2.2;
+      yaw = stepToward(DEER.pos, CAMP.x + Math.cos(a) * rr, CAMP.z + Math.sin(a) * rr, sp, dt);
+    }
+  }
+  var cr = safeR() + 0.5, cx = DEER.pos.x - CAMP.x, cz = DEER.pos.z - CAMP.z, cd = Math.hypot(cx, cz);
+  if (cr > 0.5 && cd < cr && cd > 1e-4) { DEER.pos.x = CAMP.x + cx / cd * cr; DEER.pos.z = CAMP.z + cz / cd * cr; }
+  keepInForest(DEER.pos);
+
+  if (yaw !== undefined && yaw !== 0) DEER.yaw = yaw;
+  if (DEER.state === 'stun') DEER.yaw = Math.atan2(dx, dz);
+  DEER.group.position.copy(DEER.pos);
+  DEER.group.rotation.y = DEER.yaw;
+  var sw = sp > 0 ? Math.sin(game.time * sp * 2.2) * 0.45 : 0;
+  DEER.legs.forEach(function (l, i) { l.rotation.x = i ? sw : -sw; });
+  DEER.arms.forEach(function (a2, i) { a2.rotation.x = i ? -sw * 0.6 : sw * 0.6; });
+  DEER.group.rotation.z = DEER.state === 'stun' ? Math.sin(game.time * 40) * 0.03 : 0;
+  DEER.eyeLight.intensity = DEER.state === 'stun' ? 0.3 : 1.2;
+}
+
+function updateKids(dt) {
+  var p = player.pos;
+  KIDS.forEach(function (k, i) {
+    if (k.state === 'saved') return;
+    if (k.state === 'lost') {
+      k.marker.rotation.y += dt * 2;
+      k.marker.position.y = 1.75 + Math.sin(game.time * 3 + i) * 0.1;
+      if (Math.hypot(p.x - k.pos.x, p.z - k.pos.z) < charDef().r + 1.3 && !player.inCar) {
+        k.state = 'follow'; k.marker.visible = false;
+        toast('👶 길 잃은 아이를 찾았다!', '모닥불까지 데려가세요');
+      }
+    } else {
+      var back = charDef().r + 1.0 + i * 0.5;
+      var tx = p.x - Math.sin(player.yaw) * back, tz = p.z - Math.cos(player.yaw) * back;
+      var d = Math.hypot(tx - k.pos.x, tz - k.pos.z);
+      var yaw = stepToward(k.pos, tx, tz, Math.min(7, 2 + d * 2), dt);
+      if (yaw) k.group.rotation.y = yaw;
+      if (Math.hypot(k.pos.x - CAMP.x, k.pos.z - CAMP.z) < Math.max(4, safeR())) {
+        k.state = 'saved'; SURV.rescued++;
+        var a = SURV.rescued / 4 * Math.PI * 2 + 0.4;
+        k.pos.set(CAMP.x + Math.cos(a) * 3.2, 0, CAMP.z + Math.sin(a) * 3.2);
+        k.group.rotation.y = Math.atan2(CAMP.x - k.pos.x, CAMP.z - k.pos.z);
+        k.glow.visible = false;
+        SURV.hp = 100;
+        toast('🎉 아이를 구했다! (' + SURV.rescued + ' / 4)', SURV.rescued === 4 ? '모든 아이를 구했다!' : '체력이 가득 찼다');
+      }
+    }
+    k.group.position.copy(k.pos);
+  });
+}
+
+function updateFlashlight(dt) {
+  var on = keys.KeyV && SURV.beam > 0 && !player.inHole;
+  if (on) SURV.beam = Math.max(0, SURV.beam - 20 * dt);
+  else SURV.beam = Math.min(100, SURV.beam + 9 * dt);
+  var fx = Math.sin(camYaw), fz = Math.cos(camYaw);
+  FLASH.light.position.set(player.pos.x, player.pos.y + charDef().r * 2 + 0.6, player.pos.z);
+  FLASH.target.position.set(player.pos.x + fx * 12, player.pos.y + 0.5, player.pos.z + fz * 12);
+  FLASH.light.intensity = on ? 4 : 0;
+}
+
+function updateSurvival(dt) {
+  SURV.actCool -= dt;
+  SURV.hunger = Math.max(0, SURV.hunger - 0.42 * dt);
+  if (SURV.hunger <= 0) {
+    SURV.hp -= 1.5 * dt;
+    SURV.starveMsg -= dt;
+    if (SURV.starveMsg <= 0) { SURV.starveMsg = 12; toast('🍽️ 너무 배고프다!', '체력이 줄어듭니다 — X 로 먹으세요'); }
+  } else if (inCampSafe(player.pos) && SURV.hunger > 25) {
+    SURV.hp = Math.min(100, SURV.hp + 1.5 * dt);          // 모닥불 곁에서 쉬면 회복
+  }
+
+  var done = nightsSurvived();
+  if (done > SURV.nights) {
+    SURV.nights = done;
+    if (done >= NIGHTS_GOAL) {
+      gameOver('🏆 99일 밤을 버텼다!', '숲에서 ' + NIGHTS_GOAL + '번의 밤을 모두 살아남았습니다. 구한 아이 ' + SURV.rescued + ' / 4');
+      return;
+    }
+    toast('🌅 ' + done + '번째 밤을 버텼다!', '99일 밤까지 ' + (NIGHTS_GOAL - done) + '번 남았다');
+  }
+  if (SURV.hp <= 0) {
+    SURV.hp = 0;
+    shatter(player.pos, charDef().color, 18);
+    gameOver('🌲 숲에서 쓰러졌다', SURV.nights + '번의 밤을 버텼지만 체력이 다했습니다. 구한 아이 ' + SURV.rescued + ' / 4');
+  }
+}
+
+function updateForest(dt) {
+  updateTrees(dt);
+  updateFire(dt);
+  updateFlashlight(dt);
+  updateWolves(dt);
+  updateDeer(dt);
+  updateKids(dt);
+  updateSurvival(dt);
+}
+
+function survBar(id, v, color) {
+  var el = document.getElementById(id);
+  el.style.width = Math.max(0, Math.min(100, v)).toFixed(1) + '%';
+  if (color) el.style.background = color;
+}
+
+function updateSurvHUD() {
+  var cycle = Math.floor(game.time / DAY_LENGTH);
+  var nightNo = Math.floor((cycle + 1) / 2);
+  document.getElementById('nightNo').textContent = night.on
+    ? '🌙 ' + nightNo + '번째 밤' : '☀️ ' + (SURV.nights + 1) + '일째 낮';
+  document.getElementById('nightsDone').textContent = SURV.nights + ' / ' + NIGHTS_GOAL;
+  survBar('hpIn', SURV.hp, SURV.hp < 30 ? '#ff4a4a' : '#e94a5a');
+  survBar('hungerIn', SURV.hunger);
+  survBar('fuelIn', FIRE.fuel, FIRE.fuel < 20 ? '#ff5a2a' : '');
+  survBar('beamIn', SURV.beam);
+  document.getElementById('hpVal').textContent = Math.ceil(SURV.hp);
+  document.getElementById('hungerVal').textContent = Math.ceil(SURV.hunger);
+  document.getElementById('fuelVal').textContent = FIRE.fuel > 0
+    ? Math.ceil(FIRE.fuel) + '% · Lv' + FIRE.level : '꺼짐';
+  document.getElementById('inv').textContent =
+    '🪵 ' + SURV.logs + '/' + LOG_MAX + '  🍒 ' + SURV.berries + '  🥩 ' + SURV.raw + '  🍖 ' + SURV.cooked;
+  document.getElementById('kids').textContent = SURV.rescued + ' / 4';
+  var hint = document.getElementById('campHint');
+  var dc = Math.hypot(player.pos.x - CAMP.x, player.pos.z - CAMP.z);
+  if (inCampSafe(player.pos)) { hint.textContent = '🔥 모닥불 빛 안 — 안전'; hint.style.color = '#ffc070'; }
+  else if (DEER.state !== 'gone' && inForest(player.pos)) {
+    hint.textContent = '🦌 사슴 ' + Math.round(Math.hypot(player.pos.x - DEER.pos.x, player.pos.z - DEER.pos.z)) +
+                       'm · 모닥불 ' + Math.round(dc) + 'm';
+    hint.style.color = '#ff7a6a';
+  } else { hint.textContent = '🔥 모닥불까지 ' + Math.round(dc) + 'm'; hint.style.color = ''; }
+}
+
+/* ------------------------------------------------------------------ *
  *  루프
  * ------------------------------------------------------------------ */
 
@@ -5582,11 +6278,13 @@ function loop(now) {
     updateFruitBars();
     updateStudentBars();
     updateLantern(dt);
+    updateForest(dt);
     updateSummon(dt);
     updateHuman(dt);
     updateToilets(dt);
     if (TENT.cool > 0) TENT.cool -= dt;
     updateHUD();
+    updateSurvHUD();
   }
 
   updateShards(dt);
@@ -5642,6 +6340,8 @@ window.FOOD_GAME = {
   TENT: TENT, LANTERN: LANTERN, pitchTent: pitchTent, inTent: inTent,
   SUMMON: SUMMON, useSummon: useSummon, GIANT: GIANT, TOILETS: TOILETS,
   playerFart: playerFart, HUMAN: HUMAN,
+  FIRE: FIRE, SURV: SURV, DEER: DEER, WOLVES: WOLVES, KIDS: KIDS, TREES: TREES, BUSHES: BUSHES,
+  CAMP: CAMP, forestAction: forestAction, eatFood: eatFood, inCampSafe: inCampSafe,
   mitt: mitt, CHILD: CHILD,
   setCamYaw: function (y) { camYaw = y; }
 };
